@@ -54,6 +54,23 @@ class InstallerTest(unittest.TestCase):
         self.assertEqual(selected_mode, "left")
         self.assertEqual((self.home / ".config/keyboard-mode").read_text(), "left\n")
 
+    def test_install_command_plan_pins_yabai_source_and_commit(self):
+        workflow_install = importlib.import_module("scripts.workflow_install")
+
+        commands = workflow_install.install_commands(ROOT, self.home)
+
+        command_text = "\n".join(commands)
+        self.assertIn("https://github.com/Droyyf/yabai-macos27.git", command_text)
+        self.assertIn("a42af64b9ba0e6e01d9745c11d486311e04ec0ab", command_text)
+
+    def test_restore_removes_only_file_created_by_installer(self):
+        workflow_install = importlib.import_module("scripts.workflow_install")
+        backup = workflow_install.install_managed_files(ROOT, self.home, self.backups)
+
+        workflow_install.restore_backup(backup, self.home)
+
+        self.assertFalse((self.home / ".hammerspoon/keyboard.lua").exists())
+
 
 if __name__ == "__main__":
     unittest.main()
