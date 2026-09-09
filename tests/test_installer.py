@@ -62,6 +62,8 @@ class InstallerTest(unittest.TestCase):
         command_text = "\n".join(commands)
         self.assertIn("https://github.com/Droyyf/yabai-macos27.git", command_text)
         self.assertIn("a42af64b9ba0e6e01d9745c11d486311e04ec0ab", command_text)
+        self.assertIn("open -gja Hammerspoon", command_text)
+        self.assertIn("skhd --start-service", command_text)
 
     def test_restore_removes_only_file_created_by_installer(self):
         workflow_install = importlib.import_module("scripts.workflow_install")

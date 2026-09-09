@@ -117,6 +117,8 @@ def install_commands(repo_root: Path, target_home: Path) -> list[str]:
         f"git -C {yabai_source} checkout --detach {YABAI_COMMIT}",
         f"make -C {yabai_source}",
         f"{yabai_source}/bin/yabai --start-service",
+        "skhd --start-service",
+        "open -gja Hammerspoon",
     ]
 
 
