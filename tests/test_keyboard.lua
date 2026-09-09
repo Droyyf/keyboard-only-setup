@@ -393,6 +393,16 @@ run("dual mode exposes a Hyper+X snap help layer", function()
   assertEqual(fake.api.debugStatus().layer, nil, "dual snap selection must close its layer")
 end)
 
+run("dual mode exposes a Hyper+3 navigation help layer with HJKL arrows", function()
+  local fake = newFake("dual", true)
+  binding(fake, HYPER, "3").pressed()
+  assertEqual(fake.api.debugStatus().layer, "dual-navigation", "Hyper+3 must open the dual navigation layer")
+  binding(fake, {}, "h").pressed()
+  assertEqual(fake.keyStrokes[#fake.keyStrokes].key, "left", "dual navigation H must emit left arrow")
+  binding(fake, {}, "escape").pressed()
+  assertEqual(fake.api.debugStatus().layer, nil, "escape must leave dual navigation")
+end)
+
 run("held Hyper chord times out without opening a raw-key layer", function()
   local fake = newFake("left", true)
   fake.modifiers = { cmd = true, alt = true, ctrl = true, shift = true }

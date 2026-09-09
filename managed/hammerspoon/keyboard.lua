@@ -673,9 +673,8 @@ local function navigationOneShot(modifiers, key)
   end)
 end
 
-local function enterNavigationLayer()
-  enterLayer("navigation", "NAV  W/A/S/D arrows  Shift selects  Q backspace  E return\nR tab  Shift+R reverse tab  B/V previous/next tab\nG address  4 find  T new  X close  1/2 back/forward  Esc exits")
-  local arrows = { w = "up", a = "left", s = "down", d = "right" }
+local function enterNavigationLayer(name, arrows, directions)
+  enterLayer(name, "Navigation", "Move, select, edit, and control browser tabs without leaving the keyboard", directions .. " arrows   Shift selects   Q backspace   E return\nR tab   Shift+R reverse tab   B/V previous/next tab\nG address   4 find   T new tab   X close tab   1/2 back/forward")
   for key, arrow in pairs(arrows) do
     bindLayer({}, key, function() hs.eventtap.keyStroke({}, arrow, 0) end, true)
     bindLayer({ "shift" }, key, function() hs.eventtap.keyStroke({ "shift" }, arrow, 0) end, true)
@@ -810,7 +809,13 @@ if currentMode == "left" then
   bindScroll({ "ctrl", "alt" }, "d", 4, 0)
   hs.hotkey.bind(hyper, "x", function() afterModifiersRelease(enterSnapLayer) end)
   hs.hotkey.bind(hyper, "3", function()
-    if activeLayer and activeLayer.name == "navigation" then closeLayer() else afterModifiersRelease(enterNavigationLayer) end
+    if activeLayer and activeLayer.name == "navigation" then
+      closeLayer()
+    else
+      afterModifiersRelease(function()
+        enterNavigationLayer("navigation", { w = "up", a = "left", s = "down", d = "right" }, "W/A/S/D")
+      end)
+    end
   end)
 else
   hs.hotkey.bind(hyper, "m", function() hs.execute("open 'raycast://extensions/raycast/menu-bar/search-menu-bar'") end)
@@ -825,6 +830,15 @@ else
   bindScroll({ "ctrl", "alt" }, "left", -4, 0)
   bindScroll({ "ctrl", "alt" }, "right", 4, 0)
   hs.hotkey.bind(hyper, "x", function() afterModifiersRelease(enterDualSnapLayer) end)
+  hs.hotkey.bind(hyper, "3", function()
+    if activeLayer and activeLayer.name == "dual-navigation" then
+      closeLayer()
+    else
+      afterModifiersRelease(function()
+        enterNavigationLayer("dual-navigation", { h = "left", j = "down", k = "up", l = "right" }, "H/J/K/L")
+      end)
+    end
+  end)
   local dualSnapUnits = {
     h = SNAP_UNITS.left, j = SNAP_UNITS.bottom, k = SNAP_UNITS.top, l = SNAP_UNITS.right,
     u = SNAP_UNITS.topLeft, i = SNAP_UNITS.topRight,

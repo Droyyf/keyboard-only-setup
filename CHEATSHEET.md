@@ -122,6 +122,14 @@ Press **Hyper+3**, release, then use these keys inside apps, choosers, menus, an
 
 Exit the navigation layer before normal typing. This provides left-hand **controls and shortcuts**, not a remapped one-hand alphabet. App-specific commands and search text still use the app's normal text input. Vimium's F link hints remain available outside the navigation layer.
 
+## Two-hand navigation layer
+
+Press **Hyper+3**, release, then use the same navigation, selection, editing,
+and browser controls as the left-hand navigation layer. In two-hand mode, the
+direction keys are **H / J / K / L** for left / down / up / right. Shift extends
+the selection, Ctrl adds word or paragraph navigation, and Command jumps to
+line or document edges. Escape, or pressing Hyper+3 again, exits the layer.
+
 ## Mouse grid
 
 Open with **Hyper+G**. Move the selected cell, optionally zoom, then click.
