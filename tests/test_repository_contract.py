@@ -16,6 +16,17 @@ class RepositoryContractTest(unittest.TestCase):
         ):
             self.assertTrue((ROOT / relative_path).is_file(), relative_path)
 
+    def test_readme_documents_install_verify_restore_and_manual_permissions(self):
+        text = (ROOT / "README.md").read_text()
+        for fragment in (
+            "./install.sh",
+            "./verify.sh",
+            "./uninstall.sh",
+            "Accessibility",
+            "Raycast",
+        ):
+            self.assertIn(fragment, text)
+
 
 if __name__ == "__main__":
     unittest.main()
