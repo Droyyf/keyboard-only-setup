@@ -1,0 +1,6 @@
+{
+  "source": "Raycast Settings UI, manually verified shortcut-map overlap scope",
+  "verified_at": "2026-09-09",
+  "notes": "Arc, Move Cursor to Next Display, Move to Next Display, and all Window Management commands show Record Hotkey.",
+  "assignments": []
+}

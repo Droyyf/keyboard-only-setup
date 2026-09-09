@@ -1,0 +1,59 @@
+# ============================================================
+# LEFT-HAND MODE — all shortcuts reachable with left hand only
+# Navigation uses WASD (gaming standard)
+# ============================================================
+
+# --- focus windows (WASD) ---
+alt - w : /Users/droy-/.config/skhd/win-dir.sh focus north
+alt - a : /Users/droy-/.config/skhd/win-dir.sh focus west
+alt - s : /Users/droy-/.config/skhd/win-dir.sh focus south
+alt - d : /Users/droy-/.config/skhd/win-dir.sh focus east
+
+# --- cycle windows ---
+alt - q : /Users/droy-/dev/yabai-macos27/bin/yabai -m window --focus next >/dev/null 2>&1
+
+# --- move window (float) / swap window (bsp) — WASD + shift ---
+alt+shift - w : /Users/droy-/.config/skhd/win-dir.sh move north
+alt+shift - a : /Users/droy-/.config/skhd/win-dir.sh move west
+alt+shift - s : /Users/droy-/.config/skhd/win-dir.sh move south
+alt+shift - d : /Users/droy-/.config/skhd/win-dir.sh move east
+
+# --- resize window — WASD + fn ---
+fn - w : /Users/droy-/.config/skhd/win-dir.sh resize north
+fn - a : /Users/droy-/.config/skhd/win-dir.sh resize west
+fn - s : /Users/droy-/.config/skhd/win-dir.sh resize south
+fn - d : /Users/droy-/.config/skhd/win-dir.sh resize east
+
+# --- switch spaces (1-5, left hand) ---
+alt - 1 : /Users/droy-/dev/yabai-macos27/bin/yabai -m space --focus 1 >/dev/null 2>&1
+alt - 2 : /Users/droy-/dev/yabai-macos27/bin/yabai -m space --focus 2 >/dev/null 2>&1
+alt - 3 : /Users/droy-/dev/yabai-macos27/bin/yabai -m space --focus 3 >/dev/null 2>&1
+alt - 4 : /Users/droy-/dev/yabai-macos27/bin/yabai -m space --focus 4 >/dev/null 2>&1
+alt - 5 : /Users/droy-/dev/yabai-macos27/bin/yabai -m space --focus 5 >/dev/null 2>&1
+
+# --- send window to space (and follow it) ---
+alt+shift - 1 : /Users/droy-/dev/yabai-macos27/bin/yabai -m window --space 1 >/dev/null 2>&1 && /Users/droy-/dev/yabai-macos27/bin/yabai -m space --focus 1 >/dev/null 2>&1
+alt+shift - 2 : /Users/droy-/dev/yabai-macos27/bin/yabai -m window --space 2 >/dev/null 2>&1 && /Users/droy-/dev/yabai-macos27/bin/yabai -m space --focus 2 >/dev/null 2>&1
+alt+shift - 3 : /Users/droy-/dev/yabai-macos27/bin/yabai -m window --space 3 >/dev/null 2>&1 && /Users/droy-/dev/yabai-macos27/bin/yabai -m space --focus 3 >/dev/null 2>&1
+alt+shift - 4 : /Users/droy-/dev/yabai-macos27/bin/yabai -m window --space 4 >/dev/null 2>&1 && /Users/droy-/dev/yabai-macos27/bin/yabai -m space --focus 4 >/dev/null 2>&1
+alt+shift - 5 : /Users/droy-/dev/yabai-macos27/bin/yabai -m window --space 5 >/dev/null 2>&1 && /Users/droy-/dev/yabai-macos27/bin/yabai -m space --focus 5 >/dev/null 2>&1
+
+# --- cycle spaces ---
+alt - z : /Users/droy-/dev/yabai-macos27/bin/yabai -m space --focus next >/dev/null 2>&1
+alt - x : /Users/droy-/dev/yabai-macos27/bin/yabai -m space --focus prev >/dev/null 2>&1
+
+# --- window toggles ---
+alt - e : /Users/droy-/dev/yabai-macos27/bin/yabai -m window --toggle zoom-fullscreen >/dev/null 2>&1
+alt - r : /Users/droy-/dev/yabai-macos27/bin/yabai -m window --toggle float >/dev/null 2>&1
+
+# --- move space to other display ---
+alt - f : /bin/bash /Users/droy-/dev/yabai-macos27/scripts/move-space-to-other-display.sh
+
+# --- move focused window to next display ---
+alt - g : /Users/droy-/dev/yabai-macos27/bin/yabai -m window --display next >/dev/null 2>&1
+
+# --- toggle layout (float ↔ bsp) ---
+alt - t : /bin/bash /Users/droy-/dev/yabai-macos27/scripts/toggle-yabai-layout.sh
+
+# Previous display (pairs with Alt+G for next display)
+alt+shift - g : /Users/droy-/dev/yabai-macos27/bin/yabai -m window --display prev >/dev/null 2>&1
