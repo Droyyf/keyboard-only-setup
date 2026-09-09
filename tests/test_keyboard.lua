@@ -220,6 +220,17 @@ run("workflow reference toggles open and closed", function()
   assertTrue(not fake.canvases[#fake.canvases].visible, "workflow reference must close on repeat")
 end)
 
+run("layer shortcuts open without depending on synthetic Hyper modifier state", function()
+  for _, mode in ipairs({ "left", "dual" }) do
+    local fake = newFake(mode, true)
+    binding(fake, HYPER, "x").pressed()
+    assertTrue(fake.api.debugStatus().layer ~= nil, "Hyper+X must open its layer in " .. mode)
+
+    binding(fake, HYPER, "3").pressed()
+    assertTrue(fake.api.debugStatus().layer ~= nil, "Hyper+3 must open navigation in " .. mode)
+  end
+end)
+
 run("app shortcut restores and focuses an existing window without launching", function()
   local fake = newFake("left", true)
   local calls = {}
@@ -420,12 +431,12 @@ run("dual mode exposes a Hyper+3 navigation help layer with HJKL arrows", functi
   assertEqual(fake.api.debugStatus().layer, nil, "escape must leave dual navigation")
 end)
 
-run("held Hyper chord times out without opening a raw-key layer", function()
+run("virtual Hyper modifiers do not block a layer trigger", function()
   local fake = newFake("left", true)
   fake.modifiers = { cmd = true, alt = true, ctrl = true, shift = true }
   binding(fake, HYPER, "x").pressed()
-  assertEqual(fake.api.debugStatus().layer, nil, "a held initiating chord must not arm raw layer keys")
-  assertEqual(activeBindingCount(fake, {}), 0, "timed-out chord must leave ordinary typing untouched")
+  assertEqual(fake.api.debugStatus().layer, "snap", "virtual modifiers must not prevent Hyper+X from opening")
+  assertTrue(activeBindingCount(fake, {}) > 0, "the snap layer must bind its target keys")
 end)
 
 run("left hints use the requested alphabet and non-vimperator style", function()

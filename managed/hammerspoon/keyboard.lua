@@ -167,28 +167,17 @@ local function enterLayer(name, title, subtitle, help)
   resetLayerTimeout()
 end
 
-local function modifiersStillDown()
-  local modifiers = hs.eventtap.checkKeyboardModifiers()
-  return modifiers.cmd or modifiers.alt or modifiers.ctrl or modifiers.shift
-end
-
--- Starting after the initiating Hyper chord is released prevents its final
--- key-up event from becoming ordinary text or a layer action.
+-- Start after the initiating Hyper key event finishes. Raycast implements
+-- Caps Lock as virtual Hyper modifiers, whose state can remain reported as
+-- pressed after the physical key is released; polling that state can prevent
+-- the layer from ever opening.
 local function afterModifiersRelease(start)
   layerRequest = layerRequest + 1
   local request = layerRequest
-  local tries = 0
-  local function attempt()
+  hs.timer.doAfter(0.05, function()
     if request ~= layerRequest then return end
-    if modifiersStillDown() and tries < 80 then
-      tries = tries + 1
-      hs.timer.doAfter(0.025, attempt)
-      return
-    end
-    if modifiersStillDown() then return end
     start()
-  end
-  hs.timer.doAfter(0.01, attempt)
+  end)
 end
 
 -- --------------------------------------------------------------------------
