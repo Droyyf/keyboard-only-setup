@@ -55,7 +55,8 @@ Spaces are existing macOS Space indexes; these shortcuts do not create missing S
 
 ## Left-hand snapping and Space layer
 
-Press **Hyper+X**, release, then choose:
+Press **Hyper+X**, release, then choose. The guide is a centered, Escape-dismissible
+reference card that explains the active layer before it captures any plain keys.
 
 | Key | Action |
 |---|---|
@@ -77,6 +78,23 @@ After **Hyper+X, T**, select a Space:
 | Space | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 |
 
 Hold **Shift** with that selection to send the focused window there and follow it.
+
+## Two-hand snapping and Space layer
+
+Two-hand mode retains its direct Hyper snap map. It also has the same discoverable
+layer: press **Hyper+X**, release, then choose:
+
+| Key | Action |
+|---|---|
+| H / J / K / L | Left / bottom / top / right half |
+| U / I / O / P | Top-left / top-right / bottom-left / bottom-right quarter |
+| ; / ' | Maximize / center |
+| T | Open Space selections below |
+| B / V / G | Toggle window-follow / hide app / minimize window |
+| 1 / 2 | Mission Control / toggle hidden Finder files |
+| Escape | Cancel |
+
+The Space selection keys and Shift behavior are the same as the left-hand Space layer.
 
 Hammerspoon owns snapping in both modes: two-hand mode uses Hyper+H/J/K/L for halves, U/I/O/P for quarters, semicolon for maximize, and apostrophe for center. Left-hand mode uses the Hyper+X layer above. Raycast Window Management remains available through Raycast search but has no global hotkeys, so it cannot collide with this map. Snapping works best in float layout; BSP can retile a window afterward.
 

@@ -33,6 +33,7 @@ local function newFake(mode, helperSucceeds)
     commands = {},
     keyStrokes = {},
     launches = {},
+    bundleLaunches = {},
     reloads = 0,
     runningApplicationsByName = {},
     scrolls = 0,
@@ -78,7 +79,7 @@ local function newFake(mode, helperSucceeds)
   function hs.application.runningApplications() return {} end
   function hs.application.frontmostApplication() return nil end
   function hs.application.launchOrFocus(name) table.insert(fake.launches, name) end
-  function hs.application.launchOrFocusByBundleID() end
+  function hs.application.launchOrFocusByBundleID(bundleID) table.insert(fake.bundleLaunches, bundleID) end
   function hs.application.get(name) return fake.runningApplicationsByName[name] end
   function hs.application.applicationForPID() return nil end
   function hs.image.imageFromAppBundle() return nil end
@@ -230,8 +231,14 @@ end)
 run("app shortcut launches an application only when it is not running", function()
   local fake = newFake("dual", true)
   binding(fake, HYPER, "t").pressed()
-  assertEqual(#fake.launches, 1, "absent kitty must receive one launch request")
-  assertEqual(fake.launches[1], "kitty", "the requested application must launch")
+  assertEqual(#fake.bundleLaunches, 1, "absent kitty must receive one bundle launch request")
+  assertEqual(fake.bundleLaunches[1], "net.kovidgoyal.kitty", "kitty must launch by stable bundle identifier")
+end)
+
+run("app shortcut launches ChatGPT by the installed Codex bundle identifier", function()
+  local fake = newFake("left", true)
+  binding(fake, HYPER, "c").pressed()
+  assertEqual(fake.bundleLaunches[1], "com.openai.codex", "ChatGPT must not rely on a display name")
 end)
 
 run("Finder-terminal shortcut focuses running kitty instead of opening another window", function()
@@ -376,6 +383,14 @@ run("dual mode owns the complete direct snap map", function()
     assertEqual(actual.w, wanted[3], "snap " .. key .. " width")
     assertEqual(actual.h, wanted[4], "snap " .. key .. " height")
   end
+end)
+
+run("dual mode exposes a Hyper+X snap help layer", function()
+  local fake = newFake("dual", true)
+  binding(fake, HYPER, "x").pressed()
+  assertEqual(fake.api.debugStatus().layer, "dual-snap", "Hyper+X must open the dual snap layer")
+  binding(fake, {}, "h").pressed()
+  assertEqual(fake.api.debugStatus().layer, nil, "dual snap selection must close its layer")
 end)
 
 run("held Hyper chord times out without opening a raw-key layer", function()

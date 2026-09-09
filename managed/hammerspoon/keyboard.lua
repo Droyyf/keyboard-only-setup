@@ -69,11 +69,21 @@ local function closeLayer()
   activeLayer = nil
 end
 
-local function layerOverlay(text)
+local function layerOverlay(title, subtitle, text)
   local screen = hs.mouse.getCurrentScreen() or hs.screen.mainScreen()
   if not screen then return end
   local frame = screen:frame()
-  local overlayWidth = math.max(300, math.min(560, frame.w - 48))
+  local overlayWidth = math.max(344, math.min(620, frame.w - 48))
+  local overlayHeight = math.min(frame.h - 48, 258)
+  local panelX = math.max(24, math.floor((frame.w - overlayWidth) / 2))
+  local panelY = math.max(24, math.floor((frame.h - overlayHeight) / 2))
+  local dark = not hs.host or not hs.host.interfaceStyle or hs.host.interfaceStyle() ~= "Light"
+  local background = dark and { red = 0.10, green = 0.11, blue = 0.14, alpha = 0.97 }
+    or { red = 0.96, green = 0.97, blue = 0.99, alpha = 0.98 }
+  local primary = dark and { red = 0.97, green = 0.98, blue = 1.0, alpha = 1 }
+    or { red = 0.08, green = 0.09, blue = 0.12, alpha = 1 }
+  local secondary = dark and { red = 0.72, green = 0.76, blue = 0.83, alpha = 1 }
+    or { red = 0.31, green = 0.35, blue = 0.42, alpha = 1 }
   if not layerCanvas then
     layerCanvas = hs.canvas.new(frame)
     layerCanvas:level("overlay")
@@ -84,14 +94,38 @@ local function layerOverlay(text)
   layerCanvas:replaceElements({
     {
       type = "rectangle", action = "fill",
-      frame = { x = 24, y = 24, w = overlayWidth, h = 172 },
-      fillColor = { red = 0.07, green = 0.08, blue = 0.11, alpha = 0.94 },
-      roundedRectRadii = { xRadius = 10, yRadius = 10 },
+      frame = { x = panelX, y = panelY, w = overlayWidth, h = overlayHeight },
+      fillColor = background,
+      roundedRectRadii = { xRadius = 14, yRadius = 14 },
+    },
+    {
+      type = "rectangle", action = "fill",
+      frame = { x = panelX + 22, y = panelY + 22, w = 4, h = 42 },
+      fillColor = { red = 0.30, green = 0.60, blue = 1.0, alpha = 1 },
+      roundedRectRadii = { xRadius = 2, yRadius = 2 },
+    },
+    {
+      type = "text", text = title,
+      frame = { x = panelX + 42, y = panelY + 18, w = overlayWidth - 150, h = 26 },
+      textSize = 18, textColor = primary,
+      textFont = ".AppleSystemUIFont",
+    },
+    {
+      type = "text", text = subtitle,
+      frame = { x = panelX + 42, y = panelY + 44, w = overlayWidth - 150, h = 22 },
+      textSize = 13, textColor = secondary,
+      textFont = ".AppleSystemUIFont",
+    },
+    {
+      type = "text", text = "ESC  Close",
+      frame = { x = panelX + overlayWidth - 108, y = panelY + 24, w = 84, h = 22 },
+      textSize = 12, textColor = secondary,
+      textFont = ".AppleSystemUIFont",
     },
     {
       type = "text", text = text,
-      frame = { x = 42, y = 40, w = overlayWidth - 36, h = 140 },
-      textSize = 15, textColor = { white = 0.96, alpha = 1 },
+      frame = { x = panelX + 28, y = panelY + 88, w = overlayWidth - 56, h = overlayHeight - 106 },
+      textSize = 15, textColor = primary,
       textFont = ".AppleSystemUIFont",
     },
   })
@@ -112,11 +146,11 @@ local function bindLayer(modifiers, key, action, repeats)
   table.insert(layerKeys, hs.hotkey.bind(modifiers or {}, key, run, nil, repeats and run or nil))
 end
 
-local function enterLayer(name, help)
+local function enterLayer(name, title, subtitle, help)
   if gridHide then gridHide() end
   closeLayer()
   activeLayer = { name = name }
-  layerOverlay(help)
+  layerOverlay(title, subtitle, help)
   bindLayer({}, "escape", closeLayer)
   resetLayerTimeout()
 end
@@ -372,7 +406,12 @@ local function cycleCurrentAppWindow()
   nextWindow:focus()
 end
 
-local launchTable = { a = "Arc", c = "ChatGPT", f = "Finder", t = "kitty" }
+local launchTable = {
+  a = { name = "Arc", bundleID = "company.thebrowser.Browser" },
+  c = { name = "ChatGPT", bundleID = "com.openai.codex" },
+  f = { name = "Finder", bundleID = "com.apple.finder" },
+  t = { name = "kitty", bundleID = "net.kovidgoyal.kitty" },
+}
 
 local LAYOUT_FILE = hs.configdir .. "/window-layout.json"
 local function saveLayout()
@@ -471,10 +510,12 @@ local function toggleDarkMode()
   if not ok then showAlert("Could not toggle dark mode") end
 end
 
-local function focusOrLaunchApplication(applicationName)
-  local application = hs.application.get(applicationName)
+local function focusOrLaunchApplication(applicationSpec)
+  local application = hs.application.get(applicationSpec.bundleID) or hs.application.get(applicationSpec.name)
   if not application then
-    hs.application.launchOrFocus(applicationName)
+    if not hs.application.launchOrFocusByBundleID(applicationSpec.bundleID) then
+      hs.application.launchOrFocus(applicationSpec.name)
+    end
     return
   end
 
@@ -507,7 +548,7 @@ end
 
 local function terminalAtFinderFolder()
   if hs.application.get("kitty") then
-    focusOrLaunchApplication("kitty")
+    focusOrLaunchApplication(launchTable.t)
     return
   end
   local ok, path = hs.osascript.applescript([[
@@ -572,7 +613,7 @@ local function oneShot(action)
 end
 
 local function enterSpaceLayer()
-  enterLayer("spaces", "SPACES  1 2 3 4 5 Q W E R\nShift + same sends the focused window and follows\nEsc exits")
+  enterLayer("spaces", "Spaces", "Focus a Space, or add Shift to move the focused window", "1  2  3  4  5\nQ  W  E  R  = Spaces 6–9")
   local keys = { "1", "2", "3", "4", "5", "q", "w", "e", "r" }
   for number, key in ipairs(keys) do
     bindLayer({}, key, function() oneShot(function() focusSpace(number) end) end)
@@ -581,7 +622,7 @@ local function enterSpaceLayer()
 end
 
 local function enterSnapLayer()
-  enterLayer("snap", "SNAP  A left  S bottom  W top  D right\nQ/E/Z/C quarters  F maximize  R center  T spaces\nB window-follow · V hide · G minimize · 1 Mission Control · 2 hidden files\nEsc exits")
+  enterLayer("snap", "Snap and system", "Choose one action; the guide closes after the action", "A left   S bottom   W top   D right\nQ/E/Z/C quarters   F maximize   R center   T spaces\nB follow   V hide app   G minimize   1 Mission Control   2 hidden files")
   snapTarget = hs.window.focusedWindow()
   local units = {
     a = SNAP_UNITS.left, s = SNAP_UNITS.bottom, w = SNAP_UNITS.top, d = SNAP_UNITS.right,
@@ -596,6 +637,26 @@ local function enterSnapLayer()
   bindLayer({}, "b", function()
     oneShot(function() hs.eventtap.keyStroke(hyper, "end", 0) end)
   end)
+  bindLayer({}, "v", function() oneShot(function() hs.eventtap.keyStroke({ "cmd" }, "h", 0) end) end)
+  bindLayer({}, "g", function() oneShot(function() hs.eventtap.keyStroke({ "cmd" }, "m", 0) end) end)
+  bindLayer({}, "1", function() oneShot(function() hs.eventtap.keyStroke({ "ctrl" }, "up", 0) end) end)
+  bindLayer({}, "2", function() oneShot(function() hs.eventtap.keyStroke({ "cmd", "shift" }, ".", 0) end) end)
+end
+
+local function enterDualSnapLayer()
+  enterLayer("dual-snap", "Snap and system", "Two-hand map — choose one action; the guide closes after the action", "H left   J bottom   K top   L right\nU/I/O/P quarters   ; maximize   ' center   T spaces\nB follow   V hide app   G minimize   1 Mission Control   2 hidden files")
+  snapTarget = hs.window.focusedWindow()
+  local units = {
+    h = SNAP_UNITS.left, j = SNAP_UNITS.bottom, k = SNAP_UNITS.top, l = SNAP_UNITS.right,
+    u = SNAP_UNITS.topLeft, i = SNAP_UNITS.topRight,
+    o = SNAP_UNITS.bottomLeft, p = SNAP_UNITS.bottomRight,
+    [";"] = SNAP_UNITS.maximize, ["'"] = SNAP_UNITS.center,
+  }
+  for key, unit in pairs(units) do
+    bindLayer({}, key, function() oneShot(function() snapFocusedWindow(unit) end) end)
+  end
+  bindLayer({}, "t", enterSpaceLayer)
+  bindLayer({}, "b", function() oneShot(function() hs.eventtap.keyStroke(hyper, "end", 0) end) end)
   bindLayer({}, "v", function() oneShot(function() hs.eventtap.keyStroke({ "cmd" }, "h", 0) end) end)
   bindLayer({}, "g", function() oneShot(function() hs.eventtap.keyStroke({ "cmd" }, "m", 0) end) end)
   bindLayer({}, "1", function() oneShot(function() hs.eventtap.keyStroke({ "ctrl" }, "up", 0) end) end)
@@ -719,8 +780,8 @@ S/D save/restore · 0 or Esc reload · B dark · W Finder terminal
 end
 
 -- Common action bindings.
-for key, applicationName in pairs({ a = "Arc", c = "ChatGPT", f = "Finder", t = "kitty" }) do
-  hs.hotkey.bind(hyper, key, function() focusOrLaunchApplication(applicationName) end)
+for key, applicationSpec in pairs(launchTable) do
+  hs.hotkey.bind(hyper, key, function() focusOrLaunchApplication(applicationSpec) end)
 end
 hs.hotkey.bind(hyper, "space", function() hs.execute("open 'raycast://'") end)
 hs.hotkey.bind(hyper, "r", openAppSwitcher)
@@ -763,6 +824,7 @@ else
   bindScroll({ "ctrl", "alt" }, "down", 0, -4)
   bindScroll({ "ctrl", "alt" }, "left", -4, 0)
   bindScroll({ "ctrl", "alt" }, "right", 4, 0)
+  hs.hotkey.bind(hyper, "x", function() afterModifiersRelease(enterDualSnapLayer) end)
   local dualSnapUnits = {
     h = SNAP_UNITS.left, j = SNAP_UNITS.bottom, k = SNAP_UNITS.top, l = SNAP_UNITS.right,
     u = SNAP_UNITS.topLeft, i = SNAP_UNITS.topRight,
