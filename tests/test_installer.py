@@ -71,6 +71,18 @@ class InstallerTest(unittest.TestCase):
 
         self.assertFalse((self.home / ".hammerspoon/keyboard.lua").exists())
 
+    def test_install_adds_keyboard_require_without_replacing_personal_init(self):
+        workflow_install = importlib.import_module("scripts.workflow_install")
+        hammerspoon = self.home / ".hammerspoon"
+        hammerspoon.mkdir()
+        init = hammerspoon / "init.lua"
+        init.write_text("hs.alert.show('personal automation')\n")
+
+        workflow_install.install_managed_files(ROOT, self.home, self.backups)
+
+        self.assertIn("hs.alert.show('personal automation')", init.read_text())
+        self.assertIn('require("keyboard")', init.read_text())
+
 
 if __name__ == "__main__":
     unittest.main()

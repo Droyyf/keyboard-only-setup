@@ -48,7 +48,8 @@ Before changing each managed file, the installer writes a timestamped backup to:
 Each backup has a manifest recording whether every target file existed before
 the installer changed it. The installer does not overwrite
 `~/.hammerspoon/init.lua`, because it can contain unrelated personal automation.
-For Hammerspoon to load the workflow, `init.lua` must include:
+It appends the following line only when it is absent, so Hammerspoon loads the
+workflow while retaining the rest of the file:
 
 ```lua
 require("keyboard")

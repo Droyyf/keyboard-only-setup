@@ -45,6 +45,13 @@ def _atomic_copy(source: Path, destination: Path) -> None:
     os.replace(temporary, destination)
 
 
+def _atomic_write_text(destination: Path, content: str) -> None:
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temporary = destination.with_name(destination.name + ".keyboard-only-setup.tmp")
+    temporary.write_text(content)
+    os.replace(temporary, destination)
+
+
 def install_managed_files(repo_root: Path, target_home: Path, backup_root: Path) -> Path:
     """Back up and atomically replace every repository-owned configuration file."""
     missing_sources = [source for source in MANAGED_FILES if not (repo_root / source).is_file()]
@@ -66,6 +73,20 @@ def install_managed_files(repo_root: Path, target_home: Path, backup_root: Path)
         _atomic_copy(source, destination)
         if destination_relative in EXECUTABLE_DESTINATIONS:
             destination.chmod(destination.stat().st_mode | stat.S_IXUSR)
+
+    init_relative = ".hammerspoon/init.lua"
+    init_file = target_home / init_relative
+    init_text = init_file.read_text() if init_file.exists() else ""
+    if 'require("keyboard")' not in init_text and "require('keyboard')" not in init_text:
+        if init_file.exists():
+            backup_file = backup / "files" / init_relative
+            backup_file.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(init_file, backup_file)
+            manifest[init_relative] = {"state": "present"}
+        else:
+            manifest[init_relative] = {"state": "absent"}
+        suffix = "" if not init_text or init_text.endswith("\n") else "\n"
+        _atomic_write_text(init_file, init_text + suffix + 'require("keyboard")\n')
 
     (backup / "manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
     return backup
