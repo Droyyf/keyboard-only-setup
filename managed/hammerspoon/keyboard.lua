@@ -98,7 +98,7 @@ local function layerOverlay(title, subtitle, text)
     or { red = 0.31, green = 0.35, blue = 0.42, alpha = 1 }
   if not layerCanvas then
     layerCanvas = hs.canvas.new(frame)
-    layerCanvas:level("overlay")
+    layerCanvas:level("modalPanel")
     layerCanvas:clickActivating(false)
   else
     layerCanvas:frame(frame)
@@ -167,17 +167,11 @@ local function enterLayer(name, title, subtitle, help)
   resetLayerTimeout()
 end
 
--- Start after the initiating Hyper key event finishes. Raycast implements
--- Caps Lock as virtual Hyper modifiers, whose state can remain reported as
--- pressed after the physical key is released; polling that state can prevent
--- the layer from ever opening.
+-- Layer bindings use plain keys, while their trigger uses Hyper. They cannot
+-- consume the initiating chord, so start immediately and avoid a timer that a
+-- screen/transient cleanup can cancel before the layer appears.
 local function afterModifiersRelease(start)
-  layerRequest = layerRequest + 1
-  local request = layerRequest
-  hs.timer.doAfter(0.05, function()
-    if request ~= layerRequest then return end
-    start()
-  end)
+  start()
 end
 
 -- --------------------------------------------------------------------------
@@ -793,7 +787,7 @@ Shortcat: Command+Shift+Space, type a hint, then Return
     or { red = 0.31, green = 0.35, blue = 0.42, alpha = 1 }
   if not referenceCanvas then
     referenceCanvas = hs.canvas.new(frame)
-    referenceCanvas:level("overlay")
+    referenceCanvas:level("modalPanel")
     referenceCanvas:clickActivating(false)
   else
     referenceCanvas:frame(frame)
