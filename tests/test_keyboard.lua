@@ -203,6 +203,23 @@ run("left mode exposes every relocated Hammerspoon action", function()
   for _, key in ipairs({ "a", "s", "w", "d", "g", "c", "f", "x" }) do binding(fake, {}, key) end
 end)
 
+run("both modes expose the complete app map and workflow reference", function()
+  for _, mode in ipairs({ "dual", "left" }) do
+    local fake = newFake(mode, true)
+    for _, key in ipairs({ "a", "c", "f", "t" }) do binding(fake, HYPER, key) end
+    binding(fake, HYPER, "/")
+    binding(fake, HYPER, "`")
+  end
+end)
+
+run("workflow reference toggles open and closed", function()
+  local fake = newFake("left", true)
+  fake.api.showCheatsheet()
+  assertTrue(fake.canvases[#fake.canvases].visible, "workflow reference must open")
+  fake.api.showCheatsheet()
+  assertTrue(not fake.canvases[#fake.canvases].visible, "workflow reference must close on repeat")
+end)
+
 run("app shortcut restores and focuses an existing window without launching", function()
   local fake = newFake("left", true)
   local calls = {}

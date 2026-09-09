@@ -44,6 +44,9 @@ local activeLayer = nil
 local layerKeys = {}
 local layerTimer = nil
 local layerCanvas = nil
+local referenceCanvas = nil
+local referenceKeys = {}
+local referenceVisible = false
 local gridHide = nil
 local snapTarget = nil
 local layerRequest = 0
@@ -67,6 +70,15 @@ local function closeLayer()
   hideLayerOverlay()
   snapTarget = nil
   activeLayer = nil
+end
+
+local function closeReference()
+  for _, hotkey in ipairs(referenceKeys) do
+    if hotkey.delete then hotkey:delete() else hotkey:disable() end
+  end
+  referenceKeys = {}
+  if referenceCanvas then referenceCanvas:hide() end
+  referenceVisible = false
 end
 
 local function layerOverlay(title, subtitle, text)
@@ -742,40 +754,72 @@ local function configureMenubar()
 end
 
 local function showCheatsheet()
-  local text
+  if referenceVisible then
+    closeReference()
+    return
+  end
+  closeLayer()
+  local text, modeName
   if currentMode == "left" then
+    modeName = "Left hand workflow"
     text = [[
-LEFT HAND (LH)   Hyper+Tab switches to dual
-
-Apps: A Arc · C ChatGPT · F Finder · T kitty · R apps
-R chooser: Ctrl+W/S select · Ctrl+E open · Space Raycast
-Core: Hyper+5 menu · Hyper+E hints (ASDFQWERZXCV) · Hyper+4 cycle
-Hyper+V clipboard · Hyper+G grid · Hyper+` cheat · Hyper+Tab mode
-Grid: WASD move · G fine · C click · F double · X right
-Layers: Hyper+X snap/spaces (then B window-follow) · Hyper+3 browser/nav
-Yabai: Alt+A/S/W/D focus · Shift+Alt+ASWD move · Fn+ASWD resize
-Alt+Q next · Alt+E zoom · Alt+R float · Alt+Z/X spaces · Alt+1..5 focus
-Shift+Alt+1..5 send · Alt+F space display · Alt+G / Shift+Alt+G display · Alt+T layout
-System: Hyper+Q/Z volume · Hyper+1/2 brightness · Ctrl+Alt+WASD scroll
-Hyper+S/D save/restore · Hyper+Esc reload · Hyper+B dark · Hyper+W Finder terminal
-Shortcat: Cmd+Shift+Space, then type hints and Return clicks
+APPS  A Arc   C ChatGPT   F Finder   T kitty   R running apps   Space Raycast
+CORE  5 menu   E hints   4 next app window   V clipboard   G mouse grid   Tab mode
+LAYERS  X snap and system   X then T Spaces   3 navigation
+WINDOWS  Option+A/S/W/D focus   Shift+Option+A/S/W/D move   Fn+A/S/W/D resize
+SPACES  Option+1–5 focus   Shift+Option+1–5 send   Option+Z/X cycle
+SYSTEM  Q/Z volume   1/2 brightness   Ctrl+Option+W/A/S/D scroll
+OTHER  S/D layouts   B appearance   W Finder terminal   Esc reload
+NAVIGATION  W/A/S/D arrows   Shift select   Q delete   E Return   R Tab
+Shortcat: Command+Shift+Space, type a hint, then Return
 ]]
   else
+    modeName = "Two-hand workflow"
     text = [[
-DUAL HAND (2H)   Hyper+Tab switches to left
-
-Apps: A Arc · C ChatGPT · F Finder · T kitty · R apps · Space Raycast
-Core: M menu · E hints · N cycle · V clipboard · G grid · / or ` cheat
-Grid: HJKL move · G fine · C click · D double · X right
-Direct snaps: H/L halves · J/K halves · U/I/O/P quarters · ; max · ' center
-Yabai: Alt+H/J/K/L focus · Shift+Alt+HJKL move · Fn+HJKL resize · Alt+Tab next
-Alt+1..9 focus · Shift+Alt+1..9 send · Alt+F zoom · Alt+S float · Alt+Z/V spaces
-Alt+←/→ display · Alt+X space display · Alt+T layout
-System: arrows volume/brightness · Ctrl+Alt+arrows scroll
-S/D save/restore · 0 or Esc reload · B dark · W Finder terminal
+APPS  A Arc   C ChatGPT   F Finder   T kitty   R running apps   Space Raycast
+CORE  M menu   E hints   N next app window   V clipboard   G mouse grid   Tab mode
+LAYERS  X snap and system   X then T Spaces   3 navigation
+WINDOWS  Option+H/J/K/L focus   Shift+Option+H/J/K/L move   Fn+H/J/K/L resize
+SNAP  Hyper+H/J/K/L halves   Hyper+U/I/O/P quarters   Hyper+; maximize   Hyper+' center
+SPACES  Option+1–9 focus   Shift+Option+1–9 send   Option+Z/V cycle
+SYSTEM  Hyper+arrows volume and brightness   Ctrl+Option+arrows scroll
+OTHER  S/D layouts   B appearance   W Finder terminal   Esc reload
+NAVIGATION  H/J/K/L arrows   Shift select   Q delete   E Return   R Tab
+Shortcat: Command+Shift+Space, type a hint, then Return
 ]]
   end
-  hs.alert.show(text, nil, nil, 14)
+  local screen = hs.mouse.getCurrentScreen() or hs.screen.mainScreen()
+  if not screen then return end
+  local frame = screen:frame()
+  local width = math.max(620, math.min(940, frame.w - 64))
+  local height = math.max(480, math.min(660, frame.h - 64))
+  local x = math.max(24, math.floor((frame.w - width) / 2))
+  local y = math.max(24, math.floor((frame.h - height) / 2))
+  local dark = not hs.host or not hs.host.interfaceStyle or hs.host.interfaceStyle() ~= "Light"
+  local background = dark and { red = 0.10, green = 0.11, blue = 0.14, alpha = 0.98 }
+    or { red = 0.96, green = 0.97, blue = 0.99, alpha = 0.99 }
+  local primary = dark and { red = 0.97, green = 0.98, blue = 1.0, alpha = 1 }
+    or { red = 0.08, green = 0.09, blue = 0.12, alpha = 1 }
+  local secondary = dark and { red = 0.72, green = 0.76, blue = 0.83, alpha = 1 }
+    or { red = 0.31, green = 0.35, blue = 0.42, alpha = 1 }
+  if not referenceCanvas then
+    referenceCanvas = hs.canvas.new(frame)
+    referenceCanvas:level("overlay")
+    referenceCanvas:clickActivating(false)
+  else
+    referenceCanvas:frame(frame)
+  end
+  referenceCanvas:replaceElements({
+    { type = "rectangle", action = "fill", frame = { x = x, y = y, w = width, h = height }, fillColor = background, roundedRectRadii = { xRadius = 16, yRadius = 16 } },
+    { type = "rectangle", action = "fill", frame = { x = x + 28, y = y + 28, w = 5, h = 50 }, fillColor = { red = 0.30, green = 0.60, blue = 1.0, alpha = 1 }, roundedRectRadii = { xRadius = 2, yRadius = 2 } },
+    { type = "text", text = modeName, frame = { x = x + 50, y = y + 24, w = width - 190, h = 28 }, textSize = 21, textColor = primary, textFont = ".AppleSystemUIFont" },
+    { type = "text", text = "Complete shortcut reference", frame = { x = x + 50, y = y + 51, w = width - 190, h = 22 }, textSize = 13, textColor = secondary, textFont = ".AppleSystemUIFont" },
+    { type = "text", text = "Hyper+/ or Hyper+`  Close", frame = { x = x + width - 210, y = y + 35, w = 178, h = 20 }, textSize = 12, textColor = secondary, textFont = ".AppleSystemUIFont" },
+    { type = "text", text = text, frame = { x = x + 34, y = y + 108, w = width - 68, h = height - 142 }, textSize = 15, textColor = primary, textFont = ".AppleSystemUIFont" },
+  })
+  referenceCanvas:show()
+  referenceVisible = true
+  table.insert(referenceKeys, hs.hotkey.bind({}, "escape", closeReference))
 end
 
 -- Common action bindings.
@@ -793,6 +837,7 @@ hs.hotkey.bind(hyper, "b", toggleDarkMode)
 hs.hotkey.bind(hyper, "w", terminalAtFinderFolder)
 hs.hotkey.bind(hyper, "tab", toggleMode)
 hs.hotkey.bind(hyper, "`", showCheatsheet)
+hs.hotkey.bind(hyper, "/", showCheatsheet)
 hs.hotkey.bind(hyper, "escape", reloadConfigs)
 hs.hotkey.bind(hyper, "0", reloadConfigs)
 
@@ -820,7 +865,6 @@ if currentMode == "left" then
 else
   hs.hotkey.bind(hyper, "m", function() hs.execute("open 'raycast://extensions/raycast/menu-bar/search-menu-bar'") end)
   hs.hotkey.bind(hyper, "n", cycleCurrentAppWindow)
-  hs.hotkey.bind(hyper, "/", showCheatsheet)
   hs.hotkey.bind(hyper, "up", function() changeVolume(5) end)
   hs.hotkey.bind(hyper, "down", function() changeVolume(-5) end)
   hs.hotkey.bind(hyper, "left", function() changeBrightness(-5) end)

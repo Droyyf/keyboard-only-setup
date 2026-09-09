@@ -3,7 +3,7 @@
 **Hyper = hold Caps Lock** (Raycast supplies ⌘⌥⌃⇧).
 
 - **Caps Lock + Tab:** switch between **2H** (two hands) and **LH** (left hand).
-- **Caps Lock + `:** show the shortcut sheet in either mode. The backtick key is above Tab on a US keyboard.
+- **Caps Lock + /** or **Caps Lock + `:** show or close the complete shortcut reference in either mode. The backtick key is above Tab on a US keyboard.
 - **2H / LH in the menu bar:** see the current mode or select one with the mouse.
 - **Caps Lock + Escape:** reload the configuration.
 
@@ -25,7 +25,7 @@ Normal letters keep typing normally. The extra left-hand controls below become a
 | Dark mode | Hyper+B | Same |
 | kitty at Finder folder when closed; focus kitty when open | Hyper+W | Same |
 | Shortcat | ⌘⇧Space | Same |
-| Cheat sheet | Hyper+/ or Hyper+` | Hyper+` |
+| Complete shortcut reference | Hyper+/ or Hyper+` | Hyper+/ or Hyper+` |
 | Reload | Hyper+0 or Hyper+Escape | Hyper+Escape |
 
 The application shortcuts work as toggles in both modes: launch the application
