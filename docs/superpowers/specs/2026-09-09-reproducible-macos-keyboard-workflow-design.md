@@ -12,8 +12,8 @@ The repository contains the managed Hammerspoon and skhd configuration files,
 the current keyboard-mode helper and window helper, the existing shortcut audit
 and tests, a backup-first installer, a verifier, and an uninstaller.
 
-The installer installs Homebrew when it is missing, then installs Hammerspoon,
-Raycast, Shortcat, and skhd through Homebrew. It clones the user's macOS
+The installer requires Homebrew already present, then installs Hammerspoon,
+Raycast, Shortcat, skhd, and jq through Homebrew. It clones the user's macOS
 27-compatible yabai fork at commit
 `a42af64b9ba0e6e01d9745c11d486311e04ec0ab`, builds it, and installs its launch
 service. It copies only repository-owned configuration files into their final
@@ -28,15 +28,15 @@ locations, starts or reloads services, and reports the selected keyboard mode.
 | `managed/skhd/skhdrc-left` | `~/.config/skhd/skhdrc-left` |
 | `managed/skhd/set-keyboard-mode.py` | `~/.config/skhd/set-keyboard-mode.py` |
 | `managed/skhd/win-dir.sh` | `~/.config/skhd/win-dir.sh` |
+| `managed/skhd/yabai-run.sh` | `~/.config/skhd/yabai-run.sh` |
 
 The installer creates `~/.config/keyboard-mode` with `left` only when it is
-absent. It derives the active `skhdrc` by invoking the installed mode helper;
-that file is never separately authored by the installer.
+absent. It copies the matching profile onto the active `skhdrc` after managed
+files are in place, then starts services.
 
 The user's pre-existing `~/.hammerspoon/init.lua` is not overwritten because
-it can contain unrelated personal automation. The installer verifies that it
-loads `keyboard.lua` and prints the exact one-line require statement needed
-when that integration is missing.
+it can contain unrelated personal automation. The installer appends
+`require("keyboard")` when that line is missing.
 
 ## Safety and recovery
 
@@ -53,18 +53,15 @@ known good state.
 
 ## Installation flow
 
-1. Verify macOS, command-line tools, and Homebrew; install Homebrew only after
-   printing its official installer command and requiring the user to rerun the
-   script, because Homebrew's installer is privileged and interactive.
+1. Verify Homebrew is present; if it is missing, print https://brew.sh and stop.
 2. Install the casks/formulae that do not need user interaction: Hammerspoon,
-   Raycast, Shortcat, and skhd.
+   Raycast, Shortcat, skhd, and jq.
 3. Clone or update the pinned yabai source into
-   `~/.local/src/yabai-macos27`, check out the exact commit, build it, and
-   start its user launch service.
-4. Backup and install managed configuration files.
+   `~/.local/src/yabai-macos27`, check out the exact commit, and build it.
+4. Backup and install managed configuration files, then activate the skhd profile.
 5. Ensure the current user's mode is preserved when valid; otherwise initialize
-   it to `left`, then activate the matching skhd profile.
-6. Reload skhd and Hammerspoon and run the verifier.
+   it to `left`.
+6. Start yabai and skhd, open Hammerspoon, reload skhd, and run the verifier.
 7. Print the manual authorization checklist.
 
 ## Manual actions

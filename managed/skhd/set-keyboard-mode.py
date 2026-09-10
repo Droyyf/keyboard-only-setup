@@ -4,6 +4,7 @@ from pathlib import Path
 import fcntl
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -80,9 +81,21 @@ def apply_mode(mode, config_dir, mode_file, reload_config):
             raise
 
 
+def find_skhd():
+    for candidate in (
+        os.environ.get('SKHD'),
+        shutil.which('skhd'),
+        '/opt/homebrew/bin/skhd',
+        '/usr/local/bin/skhd',
+    ):
+        if candidate and os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+            return candidate
+    raise RuntimeError('skhd not found')
+
+
 def reload_skhd():
     # The daemon hotloads files as well; explicit reload avoids relying on that watcher.
-    result = subprocess.run(['/opt/homebrew/bin/skhd', '--reload'], capture_output=True, text=True, timeout=3)
+    result = subprocess.run([find_skhd(), '--reload'], capture_output=True, text=True, timeout=3)
     if result.returncode:
         raise RuntimeError('skhd reload failed; check that skhd is running')
 

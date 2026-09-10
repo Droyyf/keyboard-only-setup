@@ -3,7 +3,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-SOURCE = Path.home() / '.config/skhd/set-keyboard-mode.py'
+SOURCE = Path(__file__).resolve().parents[1] / 'managed/skhd/set-keyboard-mode.py'
 
 class ModeSwitchTest(unittest.TestCase):
     def setUp(self):

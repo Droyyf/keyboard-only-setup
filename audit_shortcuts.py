@@ -95,19 +95,25 @@ def audit(bindings: list[dict[str, str]]) -> list[str]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--raycast", type=Path, default=Path(__file__).with_name("raycast-live-shortcuts.json"))
-    parser.add_argument("--hammerspoon", type=Path, default=Path.home() / ".hammerspoon/keyboard.lua")
-    parser.add_argument(
-        "--skhd",
-        type=Path,
-        nargs="*",
-        default=[Path.home() / ".config/skhd/skhdrc-dual", Path.home() / ".config/skhd/skhdrc-left"],
-    )
+    root = Path(__file__).resolve().parent
+    parser.add_argument("--live", action="store_true", help="audit installed files under $HOME")
+    parser.add_argument("--raycast", type=Path, default=root / "raycast-live-shortcuts.json")
+    parser.add_argument("--hammerspoon", type=Path)
+    parser.add_argument("--skhd", type=Path, nargs="*")
     args = parser.parse_args()
 
+    hammerspoon = args.hammerspoon
+    skhd = args.skhd
+    if args.live:
+        hammerspoon = hammerspoon or (Path.home() / ".hammerspoon/keyboard.lua")
+        skhd = skhd or [Path.home() / ".config/skhd/skhdrc-dual", Path.home() / ".config/skhd/skhdrc-left"]
+    else:
+        hammerspoon = hammerspoon or (root / "managed/hammerspoon/keyboard.lua")
+        skhd = skhd or [root / "managed/skhd/skhdrc-dual", root / "managed/skhd/skhdrc-left"]
+
     bindings = raycast_bindings(args.raycast)
-    bindings += hammerspoon_hyper_bindings(args.hammerspoon)
-    bindings += skhd_bindings(args.skhd)
+    bindings += hammerspoon_hyper_bindings(hammerspoon)
+    bindings += skhd_bindings(skhd)
     findings = audit(bindings)
     if findings:
         print("Shortcut audit failed:")

@@ -11,8 +11,46 @@
 #   - fullscreen window → move/resize silently skipped
 #   - missing/invalid arguments → silent exit
 #   - all yabai stderr suppressed → no log noise
-YABAI="/Users/droy-/dev/yabai-macos27/bin/yabai"
-JQ="/opt/homebrew/bin/jq"
+
+if [ -z "${YABAI:-}" ]; then
+  for candidate in \
+    "${YABAI_ROOT:+$YABAI_ROOT/bin/yabai}" \
+    "$HOME/.local/src/yabai-macos27/bin/yabai" \
+    "$HOME/dev/yabai-macos27/bin/yabai"
+  do
+    if [ -n "$candidate" ] && [ -x "$candidate" ]; then
+      YABAI="$candidate"
+      break
+    fi
+  done
+fi
+[ -n "${YABAI:-}" ] || exit 0
+
+if [ -z "${JQ:-}" ] || [ ! -x "${JQ:-}" ]; then
+  JQ=""
+  for candidate in /opt/homebrew/bin/jq /usr/local/bin/jq; do
+    if [ -x "$candidate" ]; then
+      JQ="$candidate"
+      break
+    fi
+  done
+  if [ -z "$JQ" ]; then
+    JQ="$(command -v jq 2>/dev/null || true)"
+  fi
+fi
+
+json_flag() {
+  local key="$1"
+  if [ -n "${JQ:-}" ] && [ -x "$JQ" ]; then
+    printf '%s' "$win_info" | "$JQ" -r --arg key "$key" '.[$key] // false'
+  else
+    printf '%s' "$win_info" | python3 -c 'import json,sys
+w=json.load(sys.stdin)
+key=sys.argv[1]
+print("true" if w.get(key) else "false")
+' "$key"
+  fi
+}
 
 op="$1"
 dir="$2"
@@ -38,8 +76,8 @@ esac
 # --- guard: no focused window or fullscreen (skip move/resize on fullscreen) ---
 win_info=$("$YABAI" -m query --windows --window 2>/dev/null)
 [ -z "$win_info" ] && exit 0
-is_fullscreen=$(echo "$win_info" | "$JQ" -r '."is-fullscreen" // false')
-is_floating=$(echo "$win_info" | "$JQ" -r '."is-floating" // false')
+is_fullscreen=$(json_flag is-fullscreen)
+is_floating=$(json_flag is-floating)
 
 case "$op" in
   focus)

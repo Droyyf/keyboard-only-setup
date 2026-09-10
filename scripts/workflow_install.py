@@ -20,10 +20,12 @@ MANAGED_FILES: Final[dict[str, str]] = {
     "managed/skhd/skhdrc-left": ".config/skhd/skhdrc-left",
     "managed/skhd/set-keyboard-mode.py": ".config/skhd/set-keyboard-mode.py",
     "managed/skhd/win-dir.sh": ".config/skhd/win-dir.sh",
+    "managed/skhd/yabai-run.sh": ".config/skhd/yabai-run.sh",
 }
 EXECUTABLE_DESTINATIONS: Final[set[str]] = {
     ".config/skhd/set-keyboard-mode.py",
     ".config/skhd/win-dir.sh",
+    ".config/skhd/yabai-run.sh",
 }
 VALID_MODES: Final[set[str]] = {"dual", "left"}
 YABAI_REPOSITORY: Final[str] = "https://github.com/Droyyf/yabai-macos27.git"
@@ -107,38 +109,78 @@ def restore_backup(backup_directory: Path, target_home: Path) -> None:
             destination.unlink()
 
 
-def install_commands(repo_root: Path, target_home: Path) -> list[str]:
-    """Return the externally visible commands used for a non-dry installation."""
-    yabai_source = target_home / ".local/src/yabai-macos27"
+def _yabai_source(target_home: Path) -> Path:
+    return target_home / ".local/src/yabai-macos27"
+
+
+def dependency_commands(repo_root: Path, target_home: Path) -> list[str]:
+    yabai_source = _yabai_source(target_home)
+    clone_or_fetch = (
+        f"git -C {yabai_source} fetch --all --tags"
+        if yabai_source.exists()
+        else f"git clone {YABAI_REPOSITORY} {yabai_source}"
+    )
     return [
         "brew install --cask hammerspoon raycast shortcat",
-        "brew install skhd",
-        f"git clone {YABAI_REPOSITORY} {yabai_source}",
+        "brew install skhd jq",
+        clone_or_fetch,
         f"git -C {yabai_source} checkout --detach {YABAI_COMMIT}",
         f"make -C {yabai_source}",
+    ]
+
+
+def service_commands(repo_root: Path, target_home: Path) -> list[str]:
+    yabai_source = _yabai_source(target_home)
+    return [
         f"{yabai_source}/bin/yabai --start-service",
         "skhd --start-service",
         "open -gja Hammerspoon",
     ]
 
 
+def install_commands(repo_root: Path, target_home: Path) -> list[str]:
+    """Return the externally visible commands used for a non-dry installation."""
+    return dependency_commands(repo_root, target_home) + service_commands(repo_root, target_home)
+
+
 def _run(command: str) -> None:
     subprocess.run(command, shell=True, check=True)
 
 
-def _install_dependencies(repo_root: Path, target_home: Path, dry_run: bool) -> None:
-    if shutil.which("brew") is None:
-        raise RuntimeError(
-            "Homebrew is required. Install it from https://brew.sh, then rerun this script."
-        )
-    source = target_home / ".local/src/yabai-macos27"
-    commands = install_commands(repo_root, target_home)
-    if source.exists():
-        commands[2] = f"git -C {source} fetch --all --tags"
+def _print_and_run(commands: list[str], dry_run: bool) -> None:
     for command in commands:
         print("+", command)
         if not dry_run:
             _run(command)
+
+
+def activate_mode(target_home: Path, requested_mode: str | None) -> str:
+    """Keep a valid selected mode or select left mode, then derive skhdrc."""
+    mode_file = target_home / ".config/keyboard-mode"
+    existing_mode = mode_file.read_text().strip() if mode_file.exists() else None
+    selected_mode = requested_mode or (existing_mode if existing_mode in VALID_MODES else "left")
+    if selected_mode not in VALID_MODES:
+        raise ValueError("mode must be one of: dual, left")
+
+    profile = target_home / f".config/skhd/skhdrc-{selected_mode}"
+    if not profile.is_file():
+        raise FileNotFoundError(f"missing skhd profile: {profile}")
+    _atomic_copy(profile, target_home / ".config/skhd/skhdrc")
+    mode_file.parent.mkdir(parents=True, exist_ok=True)
+    mode_file.write_text(selected_mode + "\n")
+    return selected_mode
+
+
+def _reload_skhd() -> None:
+    skhd = shutil.which("skhd")
+    if skhd is None:
+        for candidate in ("/opt/homebrew/bin/skhd", "/usr/local/bin/skhd"):
+            if Path(candidate).is_file():
+                skhd = candidate
+                break
+    if skhd is None:
+        return
+    subprocess.run([skhd, "--reload"], capture_output=True, text=True, timeout=3, check=False)
 
 
 def verify(repo_root: Path, target_home: Path) -> list[str]:
@@ -187,11 +229,22 @@ def _cli(argv: list[str]) -> int:
         print(f"Restored {backup}")
         return 0
 
-    _install_dependencies(repo_root, target_home, args.dry_run)
+    if shutil.which("brew") is None:
+        raise RuntimeError(
+            "Homebrew is required. Install it from https://brew.sh, then rerun this script."
+        )
+
+    planned = install_commands(repo_root, target_home)
     if args.dry_run:
+        for command in planned:
+            print("+", command)
         return 0
+
+    _print_and_run(dependency_commands(repo_root, target_home), dry_run=False)
     backup = install_managed_files(repo_root, target_home, target_home / ".keyboard-only-setup/backups")
     mode = activate_mode(target_home, args.mode)
+    _print_and_run(service_commands(repo_root, target_home), dry_run=False)
+    _reload_skhd()
     print(f"Installed mode: {mode}")
     print(f"Backup: {backup}")
     print("Grant Accessibility to Hammerspoon, skhd, yabai, Raycast, and Shortcat.")
@@ -201,20 +254,3 @@ def _cli(argv: list[str]) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(_cli(sys.argv[1:]))
-
-
-def activate_mode(target_home: Path, requested_mode: str | None) -> str:
-    """Keep a valid selected mode or select left mode, then derive skhdrc."""
-    mode_file = target_home / ".config/keyboard-mode"
-    existing_mode = mode_file.read_text().strip() if mode_file.exists() else None
-    selected_mode = requested_mode or (existing_mode if existing_mode in VALID_MODES else "left")
-    if selected_mode not in VALID_MODES:
-        raise ValueError("mode must be one of: dual, left")
-
-    profile = target_home / f".config/skhd/skhdrc-{selected_mode}"
-    if not profile.is_file():
-        raise FileNotFoundError(f"missing skhd profile: {profile}")
-    _atomic_copy(profile, target_home / ".config/skhd/skhdrc")
-    mode_file.parent.mkdir(parents=True, exist_ok=True)
-    mode_file.write_text(selected_mode + "\n")
-    return selected_mode

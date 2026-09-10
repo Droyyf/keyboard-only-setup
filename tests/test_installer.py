@@ -1,4 +1,5 @@
 import importlib
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -64,6 +65,7 @@ class InstallerTest(unittest.TestCase):
         self.assertIn("a42af64b9ba0e6e01d9745c11d486311e04ec0ab", command_text)
         self.assertIn("open -gja Hammerspoon", command_text)
         self.assertIn("skhd --start-service", command_text)
+        self.assertIn("brew install skhd jq", command_text)
 
     def test_restore_removes_only_file_created_by_installer(self):
         workflow_install = importlib.import_module("scripts.workflow_install")
@@ -72,6 +74,17 @@ class InstallerTest(unittest.TestCase):
         workflow_install.restore_backup(backup, self.home)
 
         self.assertFalse((self.home / ".hammerspoon/keyboard.lua").exists())
+
+    def test_activate_mode_is_defined_before_cli_entry(self):
+        source = (ROOT / "scripts/workflow_install.py").read_text()
+        self.assertLess(source.index("def activate_mode"), source.index('if __name__'))
+
+    def test_install_copies_yabai_wrapper_and_marks_it_executable(self):
+        workflow_install = importlib.import_module("scripts.workflow_install")
+        workflow_install.install_managed_files(ROOT, self.home, self.backups)
+        wrapper = self.home / ".config/skhd/yabai-run.sh"
+        self.assertTrue(wrapper.is_file())
+        self.assertTrue(os.access(wrapper, os.X_OK))
 
     def test_install_adds_keyboard_require_without_replacing_personal_init(self):
         workflow_install = importlib.import_module("scripts.workflow_install")

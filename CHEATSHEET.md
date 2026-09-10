@@ -3,11 +3,32 @@
 **Hyper = hold Caps Lock** (Raycast supplies ⌘⌥⌃⇧).
 
 - **Caps Lock + Tab:** switch between **2H** (two hands) and **LH** (left hand).
-- **Caps Lock + /** or **Caps Lock + `:** show or close the complete shortcut reference in either mode. The backtick key is above Tab on a US keyboard.
+- **Caps Lock + /:** open the interactive **Action Hub** in either mode.
+- **Caps Lock + `:** show or close the complete shortcut reference. The backtick key is above Tab on a US keyboard.
 - **2H / LH in the menu bar:** see the current mode or select one with the mouse.
 - **Caps Lock + Escape:** reload the configuration.
 
 Normal letters keep typing normally. The extra left-hand controls below become active only after you deliberately open their layer. Release Caps Lock before pressing a layer selection. Escape cancels; layers also time out after inactivity.
+
+## Action Hub
+
+Press **Hyper+/**, release, then choose an area. Every action in this workflow is
+available from one of these executable HUD routes while its direct shortcut
+remains available as the faster path. The same six entry keys work in **LH** and
+**2H** mode, and each LH route keeps its selection keys on the left side.
+
+| Key | Route | Includes |
+|---|---|---|
+| A | Apps | App toggles, Raycast, clipboard, hints, grid, Shortcat |
+| S | Windows | Focus, move, resize, fullscreen, float, displays, layouts, snapping |
+| W | Spaces | Focus or send to Spaces 1–9 |
+| D | System | Volume, brightness, scrolling, appearance |
+| F | Navigation | The mode-aware navigation layer |
+| R | Utilities | Layout snapshots, kitty folder, window-follow, mode switch, reload |
+| ` | Reference | The complete read-only shortcut reference |
+
+Inside a route, the HUD shows the available selection keys. **Escape** returns
+to ordinary typing; it does not execute an action.
 
 ## Everyday actions
 
@@ -25,7 +46,7 @@ Normal letters keep typing normally. The extra left-hand controls below become a
 | Dark mode | Hyper+B | Same |
 | kitty at Finder folder when closed; focus kitty when open | Hyper+W | Same |
 | Shortcat | ⌘⇧Space | Same |
-| Complete shortcut reference | Hyper+/ or Hyper+` | Hyper+/ or Hyper+` |
+| Interactive Action Hub / complete shortcut reference | Hyper+/ / Hyper+` | Same |
 | Reload | Hyper+0 or Hyper+Escape | Hyper+Escape |
 
 The application shortcuts work as toggles in both modes: launch the application
@@ -48,6 +69,7 @@ Finder folder is used only when kitty needs to be launched.
 | Go to Space | ⌥1–9 | ⌥1–5; use Space layer for all nine |
 | Send window to Space and follow | ⌥⇧1–9 | ⌥⇧1–5; use Space layer for all nine |
 | Window to previous / next display | ⌥← / → | ⌥⇧G / ⌥G |
+| Window to previous / next display from the HUD | Hyper+X, then ⇧R / ⇧F | Same |
 | Space to other display | ⌥X | ⌥F |
 | Toggle float / BSP layout | ⌥T | Same |
 
@@ -64,6 +86,7 @@ reference card that explains the active layer before it captures any plain keys.
 | Q / E | Top-left / top-right quarter |
 | Z / C | Bottom-left / bottom-right quarter |
 | F / R | Maximize / center |
+| Shift + F / R | Move focused window to next / previous display |
 | T | Open Space selections below |
 | B | Toggle the existing window-follow behavior |
 | V / G | Hide app / minimize window |
@@ -89,6 +112,7 @@ layer: press **Hyper+X**, release, then choose:
 | H / J / K / L | Left / bottom / top / right half |
 | U / I / O / P | Top-left / top-right / bottom-left / bottom-right quarter |
 | ; / ' | Maximize / center |
+| Shift + F / R | Move focused window to next / previous display |
 | T | Open Space selections below |
 | B / V / G | Toggle window-follow / hide app / minimize window |
 | 1 / 2 | Mission Control / toggle hidden Finder files |

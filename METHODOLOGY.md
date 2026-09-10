@@ -8,8 +8,8 @@ See **[CHEATSHEET.md](CHEATSHEET.md)** for the complete map and **[RAYCAST_SETUP
 
 - **Raycast:** Caps Lock → Hyper and searchable commands. Its Window Management commands have no global hotkeys.
 - **skhd:** low-latency window focus, move, resize, Space and display commands; one selected profile at a time.
-- **yabai:** executes window, Space, and display operations. The verified active binary is `/Users/droy-/dev/yabai-macos27/bin/yabai`.
-- **Hammerspoon:** mode switch and indicator; apps, hints, grid, scrolling, media, snapshots; direct two-hand snapping; left-hand snapping and navigation layers; mode-aware help.
+- **yabai:** executes window, Space, and display operations. Helpers resolve `$HOME/.local/src/yabai-macos27` first, then `$HOME/dev/yabai-macos27`.
+- **Hammerspoon:** mode switch and indicator; apps, hints, grid, scrolling, media, snapshots, window-follow; direct two-hand snapping; snapping and navigation layers; mode-aware help.
 - **Shortcat:** existing ⌘⇧Space activation for accessibility-based UI search.
 
 The left-hand map uses W/A/S/D for direction. Short, explicitly entered layers make the less frequent actions available without stretching or losing actions such as Spaces 6–9. Outside those layers, normal typing remains unchanged. This is a shortcut/control map, not a one-hand text-entry layout.
@@ -26,12 +26,13 @@ The left-hand map uses W/A/S/D for direction. Short, explicitly entered layers m
 | `~/.config/skhd/skhdrc` | Active skhd configuration |
 | `~/.config/skhd/set-keyboard-mode.py` | Validated, locked profile switch with failure rollback |
 | `~/.config/skhd/win-dir.sh` | Focus / float move / BSP swap / resize helper |
+| `~/.config/skhd/yabai-run.sh` | Resolves the yabai binary and layout scripts |
 
 Use the mode switch rather than editing the generated active `skhdrc`: edit the corresponding profile when changing shortcuts. Keep both profiles' actions in sync, then update the cheat sheet.
 
 ## Switching and recovery
 
-**Hyper+Tab** switches mode; the menu bar shows **2H** or **LH**. **Hyper+backtick** displays the active map. **Hyper+Escape** reloads the configuration.
+**Hyper+Tab** switches mode; the menu bar shows **2H** or **LH**. **Hyper+/** opens the executable Action Hub, which routes Apps, Windows, Spaces, System, Navigation, and Utilities to their established action owners. **Hyper+backtick** displays the read-only active map. **Hyper+Escape** reloads the configuration. Two-hand mode also binds **Hyper+0** to reload. A missing mode file is treated as **LH**, matching the installer.
 
 The switching helper validates the target profile, serializes concurrent requests, atomically replaces the active skhd file, requests skhd reload, and only then records the selected mode. Reported reload or write failures restore the previous files and request another reload. skhd's reload command signals the daemon; live input testing is still needed to establish that the daemon has actually adopted every binding.
 
@@ -50,7 +51,8 @@ To restore the old setup, restore the backed-up Hammerspoon files and original s
 
 ## Behavioral boundaries
 
-- Hammerspoon owns every global snap chord. Raycast Window Management remains enabled for searchable commands, with its global hotkey fields unassigned.
+- Hammerspoon owns every global snap chord and window-follow. If `~/.hammerspoon/init.lua` still contains an older follow watcher or Hyper+End binding, remove that block so only `keyboard.lua` owns the behavior.
+- Raycast Window Management remains enabled for searchable commands, with its global hotkey fields unassigned.
 - Snapping is intended for floating windows. yabai BSP may retile snapped windows; ⌥T changes the layout deliberately.
 - Space numbers reference existing macOS Spaces; no extra Spaces are created by these bindings.
 - Search fields still need text entry. The navigation layer supplies arrows, Tab, Return, browser and editing controls without remapping the alphabet.

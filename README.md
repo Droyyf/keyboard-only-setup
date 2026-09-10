@@ -73,18 +73,16 @@ attempts to bypass or grant them automatically.
 
 ## Verify
 
-Verify an installed machine with:
+`./verify.sh` runs the Python tests, the Hammerspoon Lua tests when the `hs` CLI is available, the shortcut audit against `managed/`, and the installed-machine file checks.
 
 ```sh
 ./verify.sh
 ```
 
-The repository’s full local regression suite is:
+Audit an already-installed map with:
 
 ```sh
-python3 -m unittest discover -s tests -p 'test_*.py' -v
-hs -c 'dofile("tests/test_keyboard.lua")'
-python3 audit_shortcuts.py
+python3 audit_shortcuts.py --live
 ```
 
 ## Restore or uninstall

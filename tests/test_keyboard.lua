@@ -1,7 +1,14 @@
 -- Run without touching the live Hammerspoon configuration:
---   hs -c 'dofile("/Users/droy-/.cline/data/workspaces/chat/keyboard-only-setup/tests/test_keyboard.lua")'
+--   hs -c 'dofile("tests/test_keyboard.lua")'
 
-local KEYBOARD = "/Users/droy-/.hammerspoon/keyboard.lua"
+local THIS = debug.getinfo(1, "S").source:gsub("^@", "")
+if THIS:sub(1, 1) ~= "/" then
+  local cwd = (hs.fs and hs.fs.currentDir and hs.fs.currentDir()) or "."
+  THIS = cwd .. "/" .. THIS
+end
+local ROOT = THIS:match("(.+)/tests/test_keyboard.lua$")
+assert(ROOT, "cannot locate repository root from " .. THIS)
+local KEYBOARD = ROOT .. "/managed/hammerspoon/keyboard.lua"
 local HYPER = { "alt", "cmd", "ctrl", "shift" }
 
 local function fail(message)
@@ -75,7 +82,12 @@ local function newFake(mode, helperSucceeds)
     return "", true
   end
   function hs.reload() fake.reloads = fake.reloads + 1 end
-  function hs.alert.show(message) table.insert(fake.alerts, message) end
+  function hs.alert.show(message)
+    table.insert(fake.alerts, message)
+    return #fake.alerts
+  end
+  function hs.alert.closeSpecific() end
+  function hs.alert.closeAll() end
   function hs.application.runningApplications() return {} end
   function hs.application.frontmostApplication() return nil end
   function hs.application.launchOrFocus(name) table.insert(fake.launches, name) end
@@ -87,14 +99,22 @@ local function newFake(mode, helperSucceeds)
   function hs.mouse.getCurrentScreen() return fake.screen end
   function hs.screen.mainScreen() return fake.screen end
   fake.screen = { frame = function() return { x = 100, y = 50, w = 1200, h = 800 } end }
-  function hs.screen.watcher.new() return timer() end
+  function hs.screen.watcher.new(callback)
+    fake.screenWatcher = callback
+    return timer()
+  end
+  hs.canvas.windowLevels = { screenSaver = 1000, overlay = 900, floating = 100 }
+  hs.canvas.windowBehaviors = { canJoinAllSpaces = 1, stationary = 2 }
   function hs.canvas.new(frame)
     local canvas = { frameValue = frame, elements = {}, visible = false }
     function canvas:level() return self end
+    function canvas:behavior() return self end
+    function canvas:alpha() return self end
     function canvas:clickActivating() return self end
     function canvas:frame(value) if value then self.frameValue = value end return self.frameValue end
     function canvas:show() self.visible = true end
     function canvas:hide() self.visible = false end
+    function canvas:delete() self.visible = false; self.deleted = true end
     function canvas:replaceElements(elements) self.elements = elements end
     table.insert(fake.canvases, canvas)
     return canvas
@@ -108,7 +128,7 @@ local function newFake(mode, helperSucceeds)
   end
   function hs.timer.doEvery() return timer() end
   function hs.timer.doAfter(delay, callback)
-    if delay < 0.1 then callback() end
+    if delay <= 0.25 then callback() end
     return timer()
   end
   function hs.timer.usleep() end
@@ -133,11 +153,11 @@ local function newFake(mode, helperSucceeds)
   local realOpen = io.open
   local fakeIo = {}
   function fakeIo.open(path, access)
-    if path == "/Users/droy-/.config/keyboard-mode" and access == "r" then
+    if type(path) == "string" and path:match("%.config/keyboard%-mode$") and access == "r" then
       if not fake.mode then return nil end
       return { read = function() return fake.mode end, close = function() end }
     end
-    if path == "/Users/droy-/.config/keyboard-mode" and access == "w" then
+    if type(path) == "string" and path:match("%.config/keyboard%-mode$") and access == "w" then
       return { write = function(_, value) fake.mode = value end, close = function() end }
     end
     return realOpen(path, access)
@@ -198,17 +218,78 @@ run("left mode exposes every relocated Hammerspoon action", function()
   for _, key in ipairs({ "5", "4", "`", "escape", "q", "z", "1", "2", "x", "3" }) do
     binding(fake, HYPER, key)
   end
+  local okZero = pcall(function() binding(fake, HYPER, "0") end)
+  assertTrue(not okZero, "left mode must not bind right-hand Hyper+0")
   for _, key in ipairs({ "w", "a", "s", "d" }) do binding(fake, { "alt", "ctrl" }, key) end
   binding(fake, HYPER, "g").pressed()
   for _, key in ipairs({ "a", "s", "w", "d", "g", "c", "f", "x" }) do binding(fake, {}, key) end
 end)
 
-run("both modes expose the complete app map and workflow reference", function()
+run("dual mode binds Hyper+0 reload", function()
+  local fake = newFake("dual", true)
+  binding(fake, HYPER, "0")
+end)
+
+run("missing mode file defaults to left", function()
+  local fake = newFake(nil, true)
+  assertEqual(fake.api.getMode(), "left")
+end)
+
+run("both modes expose the complete app map, action hub, and workflow reference", function()
   for _, mode in ipairs({ "dual", "left" }) do
     local fake = newFake(mode, true)
     for _, key in ipairs({ "a", "c", "f", "t" }) do binding(fake, HYPER, key) end
     binding(fake, HYPER, "/")
     binding(fake, HYPER, "`")
+  end
+end)
+
+run("action hub routes every workflow category in both modes", function()
+  for _, mode in ipairs({ "left", "dual" }) do
+    local apps = newFake(mode, true)
+    binding(apps, HYPER, "/").pressed()
+    assertEqual(apps.api.debugStatus().layer, "workflow", mode .. " hub must open")
+    binding(apps, {}, "a").pressed()
+    assertEqual(apps.api.debugStatus().layer, "workflow-apps", mode .. " apps route must open")
+    binding(apps, {}, "c").pressed()
+    assertEqual(apps.bundleLaunches[#apps.bundleLaunches], "com.openai.codex", mode .. " app menu must launch ChatGPT")
+
+    local windows = newFake(mode, true)
+    binding(windows, HYPER, "/").pressed()
+    binding(windows, {}, "s").pressed()
+    assertEqual(windows.api.debugStatus().layer, "workflow-windows", mode .. " windows route must open")
+    binding(windows, {}, mode == "left" and "a" or "h").pressed()
+    assertTrue(windows.commands[#windows.commands]:find("win%-dir%.sh focus west"),
+      mode .. " windows menu must use the directional helper")
+
+    local spaces = newFake(mode, true)
+    binding(spaces, HYPER, "/").pressed()
+    binding(spaces, {}, "w").pressed()
+    assertEqual(spaces.api.debugStatus().layer, "spaces", mode .. " Spaces route must open")
+    binding(spaces, {}, "r").pressed()
+    assertTrue(spaces.commands[#spaces.commands]:find("space %-%-focus 9"),
+      mode .. " Spaces menu must reach Space 9")
+
+    local system = newFake(mode, true)
+    binding(system, HYPER, "/").pressed()
+    binding(system, {}, "d").pressed()
+    assertEqual(system.api.debugStatus().layer, "workflow-system", mode .. " system route must open")
+    binding(system, {}, "q").pressed()
+    assertTrue(tostring(system.alerts[#system.alerts]):find("Volume"), mode .. " system menu must change volume")
+
+    local navigation = newFake(mode, true)
+    binding(navigation, HYPER, "/").pressed()
+    binding(navigation, {}, "f").pressed()
+    assertTrue(navigation.api.debugStatus().layer:find("navigation"), mode .. " navigation route must open")
+    binding(navigation, {}, mode == "left" and "a" or "h").pressed()
+    assertEqual(navigation.keyStrokes[#navigation.keyStrokes].key, "left", mode .. " navigation menu must send left")
+
+    local utilities = newFake(mode, true)
+    binding(utilities, HYPER, "/").pressed()
+    binding(utilities, {}, "r").pressed()
+    assertEqual(utilities.api.debugStatus().layer, "workflow-utilities", mode .. " utilities route must open")
+    binding(utilities, {}, "s").pressed()
+    assertTrue(tostring(utilities.alerts[#utilities.alerts]):find("Layout saved"), mode .. " utilities menu must save layout")
   end
 end)
 
@@ -220,15 +301,33 @@ run("workflow reference toggles open and closed", function()
   assertTrue(not fake.canvases[#fake.canvases].visible, "workflow reference must close on repeat")
 end)
 
+run("cheatsheet closes an open mouse grid", function()
+  local fake = newFake("dual", true)
+  fake.api.gridShow()
+  assertTrue(fake.api.debugStatus().grid, "grid must open")
+  fake.api.showCheatsheet()
+  assertTrue(not fake.api.debugStatus().grid, "cheatsheet must close the grid")
+end)
+
 run("layer shortcuts open without depending on synthetic Hyper modifier state", function()
   for _, mode in ipairs({ "left", "dual" }) do
     local fake = newFake(mode, true)
     binding(fake, HYPER, "x").pressed()
     assertTrue(fake.api.debugStatus().layer ~= nil, "Hyper+X must open its layer in " .. mode)
+    assertTrue(#fake.alerts > 0 and tostring(fake.alerts[#fake.alerts]):find("Snap"), "Hyper+X overlay must be visible in " .. mode)
 
     binding(fake, HYPER, "3").pressed()
     assertTrue(fake.api.debugStatus().layer ~= nil, "Hyper+3 must open navigation in " .. mode)
+    assertTrue(tostring(fake.alerts[#fake.alerts]):find("Navigation"), "Hyper+3 overlay must be visible in " .. mode)
   end
+end)
+
+run("a screen watcher event cannot immediately dismiss a newly opened HUD", function()
+  local fake = newFake("left", true)
+  binding(fake, HYPER, "x").pressed()
+  assertEqual(fake.api.debugStatus().layer, "snap", "Hyper+X must open the snap layer")
+  fake.screenWatcher()
+  assertEqual(fake.api.debugStatus().layer, "snap", "opening guard must keep the HUD visible")
 end)
 
 run("app shortcut restores and focuses an existing window without launching", function()
@@ -385,6 +484,29 @@ run("left snap layer captures commands as one-shot target keys", function()
   assertEqual(fake.api.debugStatus().layer, nil, "snap commands must close their layer first")
   assertEqual(fake.keyStrokes[#fake.keyStrokes].mods, "cmd", "snap V must emit Command")
   assertEqual(fake.keyStrokes[#fake.keyStrokes].key, "h", "snap V must hide the application")
+end)
+
+run("snap layer moves the focused window between displays in both modes", function()
+  for _, mode in ipairs({ "left", "dual" }) do
+    local fake = newFake(mode, true)
+    binding(fake, HYPER, "x").pressed()
+    binding(fake, { "shift" }, "f").pressed()
+    assertTrue(fake.commands[#fake.commands]:find("window %-%-display next"),
+      mode .. " mode must move the focused window to the next display")
+
+    binding(fake, HYPER, "x").pressed()
+    binding(fake, { "shift" }, "r").pressed()
+    assertTrue(fake.commands[#fake.commands]:find("window %-%-display prev"),
+      mode .. " mode must move the focused window to the previous display")
+  end
+end)
+
+run("snap layer B toggles window-follow locally", function()
+  local fake = newFake("left", true)
+  assertTrue(fake.api.debugStatus().follow, "follow starts enabled")
+  binding(fake, HYPER, "x").pressed()
+  binding(fake, {}, "b").pressed()
+  assertTrue(not fake.api.debugStatus().follow, "snap B must toggle follow")
 end)
 
 run("dual mode owns the complete direct snap map", function()

@@ -13,6 +13,7 @@ class RepositoryContractTest(unittest.TestCase):
             "managed/skhd/skhdrc-left",
             "managed/skhd/set-keyboard-mode.py",
             "managed/skhd/win-dir.sh",
+            "managed/skhd/yabai-run.sh",
         ):
             self.assertTrue((ROOT / relative_path).is_file(), relative_path)
 
