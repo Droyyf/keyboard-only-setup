@@ -5,7 +5,7 @@ maps: **2H** for normal two-hand use and **LH** for left-hand shortcut access.
 
 It combines Raycast Hyper Key, Hammerspoon, skhd, a macOS 27-compatible yabai
 build, and Shortcat. Hammerspoon owns app toggles, snapping, navigation layers,
-the cheat sheet, and mode selection. skhd invokes yabai for focus, movement,
+a Hyper-held Action Hub and generated shortcut reference, and mode selection. skhd invokes yabai for focus, movement,
 resizing, native Spaces, and displays.
 
 Read [CHEATSHEET.md](CHEATSHEET.md) for the complete map and
@@ -84,6 +84,21 @@ Audit an already-installed map with:
 ```sh
 python3 audit_shortcuts.py --live
 ```
+
+## Refresh after editing
+
+For a quick live reload without changing files, press **Hyper+Escape**.
+
+After editing the repository sources, run the following from this repository:
+
+```sh
+./refresh.sh
+```
+
+It runs the verification suite, makes a timestamped backup, atomically installs
+only the repository-owned Hammerspoon and skhd files, preserves the selected
+LH/2H mode, then reloads skhd and Hammerspoon. It does not rerun Homebrew or
+reinstall applications.
 
 ## Restore or uninstall
 

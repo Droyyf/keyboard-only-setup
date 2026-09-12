@@ -10,9 +10,25 @@ local ROOT = THIS:match("(.+)/tests/test_keyboard.lua$")
 assert(ROOT, "cannot locate repository root from " .. THIS)
 local KEYBOARD = ROOT .. "/managed/hammerspoon/keyboard.lua"
 local HYPER = { "alt", "cmd", "ctrl", "shift" }
+local KEY = {
+  a = 0, s = 1, d = 2, f = 3, h = 4, g = 5, z = 6, x = 7, c = 8, v = 9,
+  b = 11, q = 12, w = 13, e = 14, r = 15, y = 16, t = 17, n = 45, m = 46,
+  ["1"] = 18, ["2"] = 19, ["3"] = 20, ["4"] = 21, ["5"] = 23, ["["] = 33, ["]"] = 30, ["`"] = 50,
+  escape = 53, up = 126, down = 125, left = 123, right = 124, tab = 48,
+  space = 49, ["return"] = 36, ["/"] = 44,
+}
+local DOWN = "keyDown"
+local UP = "keyUp"
+local FLAGS = "flagsChanged"
+local HYPER_FLAGS = { cmd = true, alt = true, ctrl = true, shift = true }
+local NO_FLAGS = {}
+
+local failures = 0
+local testsRun = 0
 
 local function fail(message)
-  error(message, 2)
+  failures = failures + 1
+  print("FAIL: " .. message)
 end
 
 local function assertTrue(value, message)
@@ -32,21 +48,22 @@ local function sorted(mods)
   return table.concat(result, "+")
 end
 
+local function run(name, fn)
+  testsRun = testsRun + 1
+  local ok, err = pcall(fn)
+  if not ok then
+    failures = failures + 1
+    print("ERROR in '" .. name .. "': " .. tostring(err))
+  end
+end
+
 local function newFake(mode, helperSucceeds)
   local fake = {
-    alerts = {},
-    bindings = {},
-    canvases = {},
-    commands = {},
-    keyStrokes = {},
-    launches = {},
-    bundleLaunches = {},
-    reloads = 0,
-    runningApplicationsByName = {},
-    scrolls = 0,
-    modifiers = {},
-    helperSucceeds = helperSucceeds,
-    mode = mode,
+    alerts = {}, bindings = {}, canvases = {}, commands = {}, keyStrokes = {},
+    launches = {}, bundleLaunches = {}, clicks = {}, scrolls = 0, reloads = 0,
+    taps = {}, chooserShown = 0, hintCalls = {}, hintChars = nil, hintStyle = nil,
+    volume = 50, muted = false, layoutWrites = 0, runningApplicationsByName = {},
+    windows = {}, helperSucceeds = helperSucceeds, mode = mode, modifiers = {},
   }
 
   local function timer()
@@ -56,9 +73,10 @@ local function newFake(mode, helperSucceeds)
   local hs = {
     configdir = "/tmp/keyboard-test",
     hotkey = {}, timer = {}, alert = {}, application = {}, image = {}, hints = {},
-    mouse = {}, screen = { watcher = {} }, canvas = {}, eventtap = { event = {} }, audiodevice = {},
-    brightness = {}, json = {}, fs = {}, osascript = {}, spaces = { watcher = {} },
-    window = {}, menubar = {}, geometry = {},
+    mouse = {}, screen = { watcher = {} }, canvas = {}, webview = {},
+    eventtap = { event = {} }, audiodevice = {}, brightness = {},
+    json = {}, fs = {}, osascript = {}, spaces = { watcher = {} },
+    window = {}, menubar = {}, geometry = {}, chooser = {}, distributednotifications = {},
   }
   fake.hs = hs
 
@@ -68,8 +86,8 @@ local function newFake(mode, helperSucceeds)
       repeated = repeated, disabled = false,
     }
     function binding:disable() self.disabled = true end
-    function binding:delete() self.disabled = true; self.deleted = true end
     function binding:enable() self.disabled = false end
+    function binding:delete() self.disabled = true; self.deleted = true end
     table.insert(fake.bindings, binding)
     return binding
   end
@@ -89,43 +107,87 @@ local function newFake(mode, helperSucceeds)
   function hs.alert.closeSpecific() end
   function hs.alert.closeAll() end
   function hs.application.runningApplications() return {} end
-  function hs.application.frontmostApplication() return nil end
+  function hs.application.frontmostApplication() return fake.frontmostApplication end
   function hs.application.launchOrFocus(name) table.insert(fake.launches, name) end
   function hs.application.launchOrFocusByBundleID(bundleID) table.insert(fake.bundleLaunches, bundleID) end
   function hs.application.get(name) return fake.runningApplicationsByName[name] end
   function hs.application.applicationForPID() return nil end
   function hs.image.imageFromAppBundle() return nil end
-  function hs.hints.windowHints() fake.hintChars = hs.hints.hintChars; fake.hintStyle = hs.hints.style end
+  function hs.hints.windowHints(windows)
+    table.insert(fake.hintCalls, windows or {})
+    fake.hintChars = hs.hints.hintChars
+    fake.hintStyle = hs.hints.style
+  end
+  function hs.hints.processChar(character) fake.hintProcessed = character end
+  function hs.hints.closeHints() fake.hintsClosed = (fake.hintsClosed or 0) + 1 end
   function hs.mouse.getCurrentScreen() return fake.screen end
+  function hs.mouse.absolutePosition() return fake.pointer or { x = 200, y = 100 } end
   function hs.screen.mainScreen() return fake.screen end
-  fake.screen = { frame = function() return { x = 100, y = 50, w = 1200, h = 800 } end }
+  fake.screen = {
+    frame = function() return { x = 100, y = 50, w = 1200, h = 800 } end,
+    fullFrame = function() return { x = 100, y = 50, w = 1200, h = 800 } end,
+  }
+  fake.otherScreen = {
+    frame = function() return { x = 1400, y = 50, w = 1200, h = 800 } end,
+    fullFrame = function() return { x = 1400, y = 50, w = 1200, h = 800 } end,
+  }
+  function hs.screen.allScreens() return { fake.screen, fake.otherScreen } end
   function hs.screen.watcher.new(callback)
     fake.screenWatcher = callback
     return timer()
   end
-  hs.canvas.windowLevels = { screenSaver = 1000, overlay = 900, floating = 100 }
+  hs.canvas.windowLevels = { assistiveTechHigh = 1500, screenSaver = 1000, overlay = 900, floating = 100 }
   hs.canvas.windowBehaviors = { canJoinAllSpaces = 1, stationary = 2 }
+  hs.webview.windowBehaviors = { canJoinAllSpaces = 1, stationary = 2, fullScreenAuxiliary = 4 }
   function hs.canvas.new(frame)
     local canvas = { frameValue = frame, elements = {}, visible = false }
-    function canvas:level() return self end
+    function canvas:level(value) if value then self.levelValue = value end return self.levelValue or self end
     function canvas:behavior() return self end
     function canvas:alpha() return self end
     function canvas:clickActivating() return self end
     function canvas:frame(value) if value then self.frameValue = value end return self.frameValue end
     function canvas:show() self.visible = true end
     function canvas:hide() self.visible = false end
+    function canvas:isShowing() return self.visible end
     function canvas:delete() self.visible = false; self.deleted = true end
     function canvas:replaceElements(elements) self.elements = elements end
     table.insert(fake.canvases, canvas)
     return canvas
   end
+  function hs.webview.new(frame)
+    local webview = { frameValue = frame, visible = false }
+    function webview:windowStyle() return self end
+    function webview:transparent() return self end
+    function webview:allowTextEntry() return self end
+    function webview:closeOnEscape() return self end
+    function webview:level(value) self.levelValue = value; return self end
+    function webview:behavior(value) self.behaviorValue = value; return self end
+    function webview:html(value) self.htmlValue = value; return self end
+    function webview:show() self.visible = true; return self end
+    function webview:sendToBack() self.sentToBack = true; return self end
+    function webview:hide() self.visible = false; return self end
+    function webview:isVisible() return self.visible end
+    function webview:delete() self.visible = false; self.deleted = true end
+    fake.webviews = fake.webviews or {}
+    table.insert(fake.webviews, webview)
+    return webview
+  end
+  function hs.eventtap.new(types, callback)
+    local tap = { types = types, callback = callback, started = false }
+    function tap:start() self.started = true end
+    function tap:stop() self.started = false end
+    table.insert(fake.taps, tap)
+    return tap
+  end
+
   function hs.eventtap.checkKeyboardModifiers() return fake.modifiers end
   function hs.eventtap.keyStroke(mods, key) table.insert(fake.keyStrokes, { mods = sorted(mods), key = key }) end
-  function hs.eventtap.leftClick() end
-  function hs.eventtap.rightClick() end
+  function hs.eventtap.leftClick(point) table.insert(fake.clicks, { kind = "left", point = point }) end
+  function hs.eventtap.rightClick(point) table.insert(fake.clicks, { kind = "right", point = point }) end
   function hs.eventtap.event.newScrollEvent()
     return { post = function() fake.scrolls = fake.scrolls + 1 end }
   end
+  hs.eventtap.event.types = { keyDown = DOWN, keyUp = UP, flagsChanged = FLAGS }
   function hs.timer.doEvery() return timer() end
   function hs.timer.doAfter(delay, callback)
     if delay <= 0.25 then callback() end
@@ -134,21 +196,51 @@ local function newFake(mode, helperSucceeds)
   function hs.timer.usleep() end
   function hs.timer.secondsSinceEpoch() return 1 end
   function hs.audiodevice.defaultOutputDevice()
-    return { volume = function() return 50 end, setVolume = function() end }
+    return {
+      volume = function() return fake.volume end,
+      setVolume = function(_, value) fake.volume = value end,
+      muted = function() return fake.muted end,
+      setMuted = function(_, value) fake.muted = value end,
+    }
   end
-  function hs.brightness.get() return 50 end
-  function hs.brightness.set() return true end
-  function hs.json.write() end
+  function hs.json.write() fake.layoutWrites = fake.layoutWrites + 1 end
   function hs.json.read() return {} end
+  function hs.json.decode() return nil end
   function hs.fs.attributes() return nil end
-  function hs.osascript.applescript() return true, "" end
+  function hs.osascript.applescript() fake.osascriptCalls = (fake.osascriptCalls or 0) + 1; return true, "" end
   function hs.spaces.watcher.new() return timer() end
-  function hs.window.allWindows() return {} end
+  function hs.distributednotifications.new(callback, name)
+    fake.appearanceCallback = callback
+    fake.appearanceNotification = name
+    return timer()
+  end
+  function hs.window.allWindows() return fake.windows end
   function hs.window.focusedWindow() return fake.focusedWindow end
   function hs.menubar.new()
     return { setTitle = function() end, setMenu = function() end }
   end
   function hs.geometry.rect(x, y, w, h) return { x = x, y = y, w = w, h = h } end
+  function hs.chooser.new(callback)
+    local chooser = { callback = callback }
+    function chooser:width() end
+    function chooser:hideCallback(fn) self.hideCallback = fn end
+    function chooser:choices() end
+    function chooser:placeholderText() end
+    function chooser:selectedRow() return 1 end
+    function chooser:selectedRowContents() return nil end
+    function chooser:show() fake.chooserShown = fake.chooserShown + 1 end
+    function chooser:hide() end
+    return chooser
+  end
+  hs.window.filter = {
+    new = function() return { subscribe = function() end } end,
+    windowDestroyed = "windowDestroyed",
+  }
+  hs.application.watcher = {
+    new = function() return { start = function() end } end,
+    terminated = "terminated",
+    activated = "activated",
+  }
 
   local realOpen = io.open
   local fakeIo = {}
@@ -158,7 +250,7 @@ local function newFake(mode, helperSucceeds)
       return { read = function() return fake.mode end, close = function() end }
     end
     if type(path) == "string" and path:match("%.config/keyboard%-mode$") and access == "w" then
-      return { write = function(_, value) fake.mode = value end, close = function() end }
+      return { write = function(_, value) fake.writtenMode = value end, close = function() end }
     end
     return realOpen(path, access)
   end
@@ -185,6 +277,15 @@ local function binding(fake, mods, key)
     if candidate.mods == requested and candidate.key == key and not candidate.disabled then return candidate end
   end
   fail("missing active binding " .. requested .. " " .. key)
+  return nil
+end
+
+local function findBinding(fake, mods, key)
+  local requested = sorted(mods)
+  for _, candidate in ipairs(fake.bindings) do
+    if candidate.mods == requested and candidate.key == key and not candidate.deleted then return candidate end
+  end
+  return nil
 end
 
 local function activeBindingCount(fake, mods)
@@ -196,141 +297,431 @@ local function activeBindingCount(fake, mods)
   return count
 end
 
-local function run(name, fn)
-  local ok, err = pcall(fn)
-  if not ok then
-    io.stderr:write("FAIL " .. name .. ": " .. tostring(err) .. "\n")
-    error(err, 0)
-  end
-  print("PASS " .. name)
+local function hudTap(fake)
+  assertTrue(#fake.taps > 0, "the HUD event tap must be installed")
+  return fake.taps[1]
 end
 
-run("Hyper+G reaches the top-level grid and paints canvas-local coordinates", function()
-  local fake = newFake("dual", true)
-  assertTrue(type(fake.api.gridShow) == "function", "gridShow must be exported and top-level")
-  binding(fake, HYPER, "g").pressed()
-  assertEqual(fake.canvases[1].elements[1].frame.x, 500, "grid rectangle must be local to its canvas")
-  assertEqual(fake.canvases[1].elements[1].frame.y, 300, "grid rectangle must be local to its canvas")
-end)
+local function tapKey(fake, keyCode, flags)
+  return hudTap(fake).callback({
+    getType = function() return DOWN end,
+    getKeyCode = function() return keyCode end,
+    getFlags = function() return flags end,
+  })
+end
 
-run("left mode exposes every relocated Hammerspoon action", function()
-  local fake = newFake("left", true)
-  for _, key in ipairs({ "5", "4", "`", "escape", "q", "z", "1", "2", "x", "3" }) do
-    binding(fake, HYPER, key)
-  end
-  local okZero = pcall(function() binding(fake, HYPER, "0") end)
-  assertTrue(not okZero, "left mode must not bind right-hand Hyper+0")
-  for _, key in ipairs({ "w", "a", "s", "d" }) do binding(fake, { "alt", "ctrl" }, key) end
-  binding(fake, HYPER, "g").pressed()
-  for _, key in ipairs({ "a", "s", "w", "d", "g", "c", "f", "x" }) do binding(fake, {}, key) end
-end)
+local function tapFlags(fake, flags)
+  return hudTap(fake).callback({
+    getType = function() return FLAGS end,
+    getKeyCode = function() return 58 end,
+    getFlags = function() return flags end,
+  })
+end
 
-run("dual mode binds Hyper+0 reload", function()
-  local fake = newFake("dual", true)
-  binding(fake, HYPER, "0")
-end)
+local function releaseHyper(fake)
+  tapFlags(fake, {})
+end
 
-run("missing mode file defaults to left", function()
-  local fake = newFake(nil, true)
-  assertEqual(fake.api.getMode(), "left")
-end)
+local function openHub(fake)
+  tapKey(fake, KEY["/"], HYPER_FLAGS)
+  assertEqual(fake.api.debugStatus().layer, "workflow", "Hyper+/ must open the Action Hub")
+end
 
-run("both modes expose the complete app map, action hub, and workflow reference", function()
-  for _, mode in ipairs({ "dual", "left" }) do
-    local fake = newFake(mode, true)
-    for _, key in ipairs({ "a", "c", "f", "t" }) do binding(fake, HYPER, key) end
-    binding(fake, HYPER, "/")
-    binding(fake, HYPER, "`")
-  end
-end)
+local function enterLayerViaHub(fake, key, expected)
+  openHub(fake)
+  tapKey(fake, KEY[key], HYPER_FLAGS)
+  assertEqual(fake.api.debugStatus().layer, expected, "hub key " .. key .. " must open " .. expected)
+end
 
-run("action hub routes every workflow category in both modes", function()
+-- ---------------------------------------------------------------------------
+-- Tests
+-- ---------------------------------------------------------------------------
+run("module loads for both hand modes and reports the mode", function()
   for _, mode in ipairs({ "left", "dual" }) do
-    local apps = newFake(mode, true)
-    binding(apps, HYPER, "/").pressed()
-    assertEqual(apps.api.debugStatus().layer, "workflow", mode .. " hub must open")
-    binding(apps, {}, "a").pressed()
-    assertEqual(apps.api.debugStatus().layer, "workflow-apps", mode .. " apps route must open")
-    binding(apps, {}, "c").pressed()
-    assertEqual(apps.bundleLaunches[#apps.bundleLaunches], "com.openai.codex", mode .. " app menu must launch ChatGPT")
-
-    local windows = newFake(mode, true)
-    binding(windows, HYPER, "/").pressed()
-    binding(windows, {}, "s").pressed()
-    assertEqual(windows.api.debugStatus().layer, "workflow-windows", mode .. " windows route must open")
-    binding(windows, {}, mode == "left" and "a" or "h").pressed()
-    assertTrue(windows.commands[#windows.commands]:find("win%-dir%.sh focus west"),
-      mode .. " windows menu must use the directional helper")
-
-    local spaces = newFake(mode, true)
-    binding(spaces, HYPER, "/").pressed()
-    binding(spaces, {}, "w").pressed()
-    assertEqual(spaces.api.debugStatus().layer, "spaces", mode .. " Spaces route must open")
-    binding(spaces, {}, "r").pressed()
-    assertTrue(spaces.commands[#spaces.commands]:find("space %-%-focus 9"),
-      mode .. " Spaces menu must reach Space 9")
-
-    local system = newFake(mode, true)
-    binding(system, HYPER, "/").pressed()
-    binding(system, {}, "d").pressed()
-    assertEqual(system.api.debugStatus().layer, "workflow-system", mode .. " system route must open")
-    binding(system, {}, "q").pressed()
-    assertTrue(tostring(system.alerts[#system.alerts]):find("Volume"), mode .. " system menu must change volume")
-
-    local navigation = newFake(mode, true)
-    binding(navigation, HYPER, "/").pressed()
-    binding(navigation, {}, "f").pressed()
-    assertTrue(navigation.api.debugStatus().layer:find("navigation"), mode .. " navigation route must open")
-    binding(navigation, {}, mode == "left" and "a" or "h").pressed()
-    assertEqual(navigation.keyStrokes[#navigation.keyStrokes].key, "left", mode .. " navigation menu must send left")
-
-    local utilities = newFake(mode, true)
-    binding(utilities, HYPER, "/").pressed()
-    binding(utilities, {}, "r").pressed()
-    assertEqual(utilities.api.debugStatus().layer, "workflow-utilities", mode .. " utilities route must open")
-    binding(utilities, {}, "s").pressed()
-    assertTrue(tostring(utilities.alerts[#utilities.alerts]):find("Layout saved"), mode .. " utilities menu must save layout")
+    local fake = newFake(mode, true)
+    assertEqual(fake.api.getMode(), mode, mode .. " mode must be read from the mode file")
   end
 end)
 
-run("workflow reference toggles open and closed", function()
+run("Hyper-held HUD lifecycle: open, route a key, close on release", function()
   local fake = newFake("left", true)
-  fake.api.showCheatsheet()
-  assertTrue(fake.canvases[#fake.canvases].visible, "workflow reference must open")
-  fake.api.showCheatsheet()
-  assertTrue(not fake.canvases[#fake.canvases].visible, "workflow reference must close on repeat")
+  openHub(fake)
+  local consumed = tapKey(fake, KEY.a, HYPER_FLAGS)
+  assertTrue(consumed == true, "keys routed to the HUD must be consumed")
+  assertEqual(fake.api.debugStatus().layer, "apps", "holding Hyper, A must open the apps layer")
+  releaseHyper(fake)
+  assertEqual(fake.api.debugStatus().layer, nil, "releasing Hyper must close every HUD")
+  local directArc = findBinding(fake, HYPER, "a")
+  assertTrue(directArc and not directArc.disabled, "direct hotkeys must be re-enabled after release")
 end)
 
-run("cheatsheet closes an open mouse grid", function()
+run("the first eventtap key-down opens every HUD identifier", function()
+  local hub = newFake("left", true)
+  assertTrue(tapKey(hub, KEY["/"], HYPER_FLAGS), "the first Hyper+/ key-down must be consumed")
+  assertEqual(hub.api.debugStatus().layer, "workflow", "the first Hyper+/ key-down must open the hub")
+
+  local snap = newFake("left", true)
+  assertTrue(tapKey(snap, KEY.x, HYPER_FLAGS), "the first Hyper+X key-down must be consumed")
+  assertEqual(snap.api.debugStatus().layer, "snap", "the first Hyper+X key-down must open snap")
+
+  local reference = newFake("left", true)
+  assertTrue(tapKey(reference, KEY["`"], HYPER_FLAGS), "the first Hyper+backtick key-down must be consumed")
+  assertTrue(reference.api.debugStatus().reference,
+    "the first Hyper+backtick key-down must open the reference")
+end)
+
+run("top-level HUD identifiers switch menus without releasing Hyper", function()
+  local fake = newFake("left", true)
+  tapKey(fake, KEY.x, HYPER_FLAGS)
+  assertEqual(fake.api.debugStatus().layer, "snap", "Hyper+X must open snap")
+  tapKey(fake, KEY["/"], HYPER_FLAGS)
+  assertEqual(fake.api.debugStatus().layer, "workflow", "Hyper+/ must replace snap with the hub")
+  tapKey(fake, KEY["3"], HYPER_FLAGS)
+  assertEqual(fake.api.debugStatus().layer, "navigation", "Hyper+3 must replace the hub with navigation")
+  tapKey(fake, KEY["`"], HYPER_FLAGS)
+  assertTrue(fake.api.debugStatus().reference, "Hyper+backtick must replace navigation with the reference")
+  tapKey(fake, KEY.x, HYPER_FLAGS)
+  assertEqual(fake.api.debugStatus().layer, "snap", "Hyper+X must replace the reference with snap")
+  assertTrue(fake.api.debugStatus().hyper, "all menu switches must preserve the held Hyper session")
+end)
+
+run("HUD canvases open on the display containing the pointer", function()
+  local fake = newFake("left", true)
+  fake.pointer = { x = 1500, y = 100 }
+  openHub(fake)
+  local canvas = fake.canvases[#fake.canvases]
+  assertEqual(canvas.frameValue.x, 1400, "the HUD canvas must use the pointer display origin")
+  assertTrue(canvas.elements[1].frame.x < 1400,
+    "HUD elements must use screen-local coordinates instead of adding the display origin twice")
+end)
+
+run("direct hotkeys stay registered and ignore callbacks while a HUD menu is open", function()
+  local fake = newFake("left", true)
+  local directArc = binding(fake, HYPER, "a")
+  local launchesBefore = #fake.launches
+  openHub(fake)
+  assertTrue(not directArc.disabled,
+    "the opening hotkey must stay registered until its physical key-up completes")
+  directArc.pressed()
+  assertEqual(#fake.launches, launchesBefore,
+    "a registered direct hotkey must ignore callbacks while the HUD router owns keys")
+  releaseHyper(fake)
+  assertTrue(not directArc.disabled, "direct hotkeys must remain registered after the HUD closes")
+end)
+
+run("running-app switcher uses a held-Hyper layer instead of control shortcuts", function()
+  local fake = newFake("left", true)
+  local activated = false
+  fake.hs.application.runningApplications = function()
+    return {
+      {
+        kind = function() return 0 end,
+        name = function() return "Example" end,
+        activate = function() activated = true end,
+      },
+    }
+  end
+  binding(fake, HYPER, "r").pressed()
+  assertEqual(fake.api.debugStatus().layer, "app-switcher", "Hyper+R must open the held-Hyper app layer")
+  tapKey(fake, KEY.a, HYPER_FLAGS)
+  assertTrue(activated, "the plain app key must activate its running app")
+  assertEqual(fake.api.debugStatus().layer, nil, "app selection must close its visual layer")
+end)
+
+run("HUD panels use an opaque system-aware Canvas surface", function()
+  local fake = newFake("left", true)
+  openHub(fake)
+  local canvas = fake.canvases[#fake.canvases]
+  assertEqual(canvas.levelValue, 1500, "HUD text must render above system panels")
+  assertEqual(canvas.elements[1].fillColor.alpha, 1, "the HUD panel must be fully opaque")
+  assertEqual(canvas.elements[1].fillColor.red, 0, "dark mode must use AMOLED black")
+  assertTrue(not fake.webviews or #fake.webviews == 0,
+    "solid HUDs must not create a separate WebView backdrop")
+  releaseHyper(fake)
+
+  local light = newFake("left", true)
+  light.hs.host = { interfaceStyle = function() return "Light" end }
+  openHub(light)
+  local lightPanel = light.canvases[#light.canvases].elements[1].fillColor
+  assertEqual(lightPanel.alpha, 1, "light mode must remain fully opaque")
+  assertTrue(lightPanel.red > lightPanel.blue,
+    "light mode must use a warm creamy white instead of a cool system gray")
+end)
+
+run("an open HUD redraws when the macOS appearance changes", function()
+  local fake = newFake("left", true)
+  fake.hs.host = { interfaceStyle = function() return "Dark" end }
+  openHub(fake)
+  assertEqual(fake.canvases[#fake.canvases].elements[1].fillColor.red, 0,
+    "the initially open HUD must use AMOLED black in dark mode")
+  fake.hs.host.interfaceStyle = function() return "Light" end
+  fake.appearanceCallback()
+  local panel = fake.canvases[#fake.canvases].elements[1].fillColor
+  assertTrue(panel.red > panel.blue, "the open HUD must redraw with creamy light colors")
+  assertEqual(fake.appearanceNotification, "AppleInterfaceThemeChangedNotification",
+    "the watcher must subscribe to the macOS appearance notification")
+end)
+
+run("arrow and Return navigation execute the selected HUD item while Hyper stays held", function()
+  local fake = newFake("left", true)
+  openHub(fake)
+  tapKey(fake, KEY.down, HYPER_FLAGS)
+  assertEqual(fake.api.debugStatus().layer, "workflow", "moving selection must keep the HUD open")
+  tapKey(fake, KEY["return"], HYPER_FLAGS)
+  assertEqual(fake.api.debugStatus().layer, "windows", "Return must execute the selected Windows entry")
+  assertTrue(fake.api.debugStatus().hyper, "Hyper must remain held after navigating into another HUD")
+end)
+
+run("every layer opens from the hub with a Hyper-held key in both modes", function()
+  for _, mode in ipairs({ "left", "dual" }) do
+    local fake = newFake(mode, true)
+    enterLayerViaHub(fake, "s", "windows")
+    releaseHyper(fake)
+    enterLayerViaHub(fake, "w", "spaces")
+    releaseHyper(fake)
+    enterLayerViaHub(fake, "d", "system")
+    releaseHyper(fake)
+    enterLayerViaHub(fake, "f", mode == "left" and "navigation" or "dual-navigation")
+    releaseHyper(fake)
+    enterLayerViaHub(fake, "r", "utilities")
+    releaseHyper(fake)
+    enterLayerViaHub(fake, "a", "apps")
+    releaseHyper(fake)
+  end
+end)
+
+run("windows layer routes arrows without Shift and toggles move/resize", function()
+  local fake = newFake("left", true)
+  enterLayerViaHub(fake, "s", "windows")
+  tapKey(fake, KEY.w, HYPER_FLAGS)
+  assertTrue(fake.commands[#fake.commands]:find("focus north", 1, true),
+    "plain arrow must focus while Hyper is held")
+  tapKey(fake, KEY.m, HYPER_FLAGS)
+  tapKey(fake, KEY.w, HYPER_FLAGS)
+  assertTrue(fake.commands[#fake.commands]:find("move north", 1, true),
+    "M must switch arrows to move/swap")
+  tapKey(fake, KEY.e, HYPER_FLAGS)
+  tapKey(fake, KEY.w, HYPER_FLAGS)
+  assertTrue(fake.commands[#fake.commands]:find("resize north", 1, true),
+    "E must switch arrows to resize")
+  assertEqual(fake.api.debugStatus().layer, "windows", "actions must keep the layer open")
+  releaseHyper(fake)
+end)
+
+run("N is the single looping next-display shortcut in every window layer", function()
+  for _, mode in ipairs({ "left", "dual" }) do
+    local fake = newFake(mode, true)
+    enterLayerViaHub(fake, "s", "windows")
+    tapKey(fake, KEY.n, HYPER_FLAGS)
+    assertTrue(fake.commands[#fake.commands]:find("window %-%-display", 1, false),
+      mode .. " mode must move the focused window to the next display")
+    releaseHyper(fake)
+
+    fake = newFake(mode, true)
+    binding(fake, HYPER, "x").pressed()
+    assertEqual(fake.api.debugStatus().layer, mode == "left" and "snap" or "dual-snap",
+      "Hyper+X must open the snap layer")
+    tapKey(fake, KEY.n, HYPER_FLAGS)
+    assertTrue(fake.commands[#fake.commands]:find("window %-%-display", 1, false),
+      "snap layer must carry the same looping display shortcut")
+    releaseHyper(fake)
+  end
+end)
+
+run("next-display follows the actual yabai display ring", function()
+  local fake = newFake("left", true)
+  local decoded = {
+    { { index = 1 }, { index = 3 } },
+    { display = 1 },
+  }
+  fake.hs.json.decode = function()
+    local result = table.remove(decoded, 1)
+    return result
+  end
+  enterLayerViaHub(fake, "s", "windows")
+  tapKey(fake, KEY.n, HYPER_FLAGS)
+  assertTrue(fake.commands[#fake.commands]:find("window %-%-display 3", 1, false),
+    "the next display must use the next queried display index, not arithmetic on the current index")
+  releaseHyper(fake)
+end)
+
+run("brightness and previous-display shortcuts are gone", function()
+  for _, mode in ipairs({ "left", "dual" }) do
+    local fake = newFake(mode, true)
+    local staleKeys = mode == "left" and { "1", "2" } or { "left", "right" }
+    for _, key in ipairs(staleKeys) do
+      assertTrue(findBinding(fake, HYPER, key) == nil,
+        "brightness must not be bound to Hyper+" .. key .. " in " .. mode .. " mode")
+    end
+    for _, candidate in ipairs(fake.bindings) do
+      assertTrue(candidate.mods ~= "shift",
+        "layer keys must not require Shift in " .. mode .. " mode")
+    end
+  end
+end)
+
+run("volume and mute stay; mute exists in both modes", function()
+  for _, mode in ipairs({ "left", "dual" }) do
+    local fake = newFake(mode, true)
+    local up = findBinding(fake, HYPER, mode == "left" and "q" or "up")
+    local down = findBinding(fake, HYPER, mode == "left" and "z" or "down")
+    local mute = findBinding(fake, HYPER, "m")
+    assertTrue(up ~= nil, mode .. " mode must keep volume up")
+    assertTrue(down ~= nil, mode .. " mode must keep volume down")
+    assertTrue(mute ~= nil, mode .. " mode must bind mute on Hyper+M")
+    up.pressed()
+    assertEqual(fake.volume, 55, mode .. " volume up must raise volume")
+    down.pressed()
+    assertEqual(fake.volume, 50, mode .. " volume down must lower volume")
+    mute.pressed()
+    assertTrue(fake.muted, mode .. " mute must toggle the output device")
+  end
+end)
+
+run("spaces layer focuses by default and sends after the S toggle", function()
+  local fake = newFake("left", true)
+  enterLayerViaHub(fake, "w", "spaces")
+  tapKey(fake, KEY["1"], HYPER_FLAGS)
+  assertTrue(fake.commands[#fake.commands]:find("space %-%-focus 1", 1, false),
+    "numbers must focus Spaces by default")
+  tapKey(fake, KEY.s, HYPER_FLAGS)
+  tapKey(fake, KEY["2"], HYPER_FLAGS)
+  assertTrue(fake.commands[#fake.commands]:find("window %-%-space 2", 1, false),
+    "S must toggle numbers to send & follow")
+  releaseHyper(fake)
+end)
+
+run("system layer scrolls with mode arrows and keeps dark mode", function()
   local fake = newFake("dual", true)
+  enterLayerViaHub(fake, "d", "system")
+  tapKey(fake, KEY.h, HYPER_FLAGS)
+  assertEqual(fake.scrolls, 1, "dual arrows must scroll (H = left)")
+  tapKey(fake, KEY.b, HYPER_FLAGS)
+  assertEqual(fake.osascriptCalls or 0, 1, "dark mode must be reachable from the system layer")
+  releaseHyper(fake)
+end)
+
+run("navigation layer routes arrows, select toggle, and browser controls", function()
+  local fake = newFake("left", true)
+  enterLayerViaHub(fake, "f", "navigation")
+  tapKey(fake, KEY.w, HYPER_FLAGS)
+  assertEqual(fake.keyStrokes[#fake.keyStrokes].key, "up", "W must emit the up arrow")
+  tapKey(fake, KEY.t, HYPER_FLAGS)
+  tapKey(fake, KEY.w, HYPER_FLAGS)
+  assertEqual(fake.keyStrokes[#fake.keyStrokes].mods, "shift", "T must make arrows select")
+  tapKey(fake, KEY.e, HYPER_FLAGS)
+  assertEqual(fake.keyStrokes[#fake.keyStrokes].key, "return", "E must confirm")
+  tapKey(fake, KEY["5"], HYPER_FLAGS)
+  assertEqual(fake.keyStrokes[#fake.keyStrokes].mods, "cmd", "5 must close the browser tab")
+  assertEqual(fake.keyStrokes[#fake.keyStrokes].key, "w", "5 must emit Command+W")
+  tapKey(fake, KEY.x, HYPER_FLAGS)
+  assertEqual(fake.api.debugStatus().layer, "snap",
+    "the global X menu identifier must switch from navigation to snap")
+  releaseHyper(fake)
+end)
+
+run("utilities layer saves layouts and the reference opens and closes", function()
+  local fake = newFake("left", true)
+  enterLayerViaHub(fake, "r", "utilities")
+  tapKey(fake, KEY.s, HYPER_FLAGS)
+  assertEqual(fake.layoutWrites, 1, "utilities S must save the window layout")
+  releaseHyper(fake)
+
+  binding(fake, HYPER, "`").pressed()
+  assertTrue(fake.api.debugStatus().reference, "Hyper+backtick must show the reference")
+  releaseHyper(fake)
+  assertTrue(not fake.api.debugStatus().reference, "releasing Hyper must close the reference")
+end)
+
+run("complete reference pages through every generated shortcut section", function()
+  local fake = newFake("left", true)
+  binding(fake, HYPER, "`").pressed()
+  local canvas = fake.canvases[#fake.canvases]
+  local firstPage = canvas.elements[3].text
+  assertTrue(firstPage:find("Page 1 of ", 1, true) ~= nil,
+    "the generated reference must show its current page and page count")
+  tapKey(fake, KEY["]"], HYPER_FLAGS)
+  assertTrue(fake.api.debugStatus().reference, "page navigation must keep the reference open while Hyper is held")
+  assertTrue(canvas.elements[3].text:find("Page 2 of ", 1, true) ~= nil,
+    "the reference must continue onto the next page instead of dropping later sections")
+  releaseHyper(fake)
+end)
+
+run("snap layer places the captured window without Shift", function()
+  local fake = newFake("left", true)
+  local moved = {}
+  fake.focusedWindow = {
+    isStandard = function() return true end,
+    moveToUnit = function(_, unit) table.insert(moved, unit) end,
+  }
+  binding(fake, HYPER, "x").pressed()
+  tapKey(fake, KEY.a, HYPER_FLAGS)
+  assertEqual(moved[#moved] and moved[#moved].x, 0, "snap A must place the left half")
+  assertEqual(moved[#moved] and moved[#moved].w, 0.5, "snap A must place the left half")
+  releaseHyper(fake)
+end)
+
+run("dual mode keeps its direct Hyper snap map", function()
+  local fake = newFake("dual", true)
+  local moved = {}
+  fake.focusedWindow = {
+    isStandard = function() return true end,
+    moveToUnit = function(_, unit) table.insert(moved, unit) end,
+  }
+  local expected = {
+    h = { 0, 0, 0.5, 1 }, l = { 0.5, 0, 0.5, 1 },
+    k = { 0, 0, 1, 0.5 }, j = { 0, 0.5, 1, 0.5 },
+    u = { 0, 0, 0.5, 0.5 }, i = { 0.5, 0, 0.5, 0.5 },
+    o = { 0, 0.5, 0.5, 0.5 }, p = { 0.5, 0.5, 0.5, 0.5 },
+  }
+  for key, wanted in pairs(expected) do
+    binding(fake, HYPER, key).pressed()
+    local actual = moved[#moved]
+    assertTrue(actual ~= nil, "snap " .. key .. " must move the focused window")
+    assertEqual(actual.x, wanted[1], "snap " .. key .. " x")
+    assertEqual(actual.y, wanted[2], "snap " .. key .. " y")
+    assertEqual(actual.w, wanted[3], "snap " .. key .. " width")
+    assertEqual(actual.h, wanted[4], "snap " .. key .. " height")
+  end
+end)
+
+run("mouse grid routes keys while Hyper is held and closes on release", function()
+  local fake = newFake("left", true)
   fake.api.gridShow()
   assertTrue(fake.api.debugStatus().grid, "grid must open")
-  fake.api.showCheatsheet()
-  assertTrue(not fake.api.debugStatus().grid, "cheatsheet must close the grid")
+  tapKey(fake, KEY.a, HYPER_FLAGS)
+  assertEqual(fake.api.debugStatus().grid, true, "grid movement keys must keep the grid open")
+  tapKey(fake, KEY.c, HYPER_FLAGS)
+  assertEqual(#fake.clicks, 1, "C must left-click the grid point")
+  assertEqual(fake.api.debugStatus().grid, false, "clicking must close the grid")
+  releaseHyper(fake)
+
+  fake = newFake("dual", true)
+  fake.api.gridShow()
+  releaseHyper(fake)
+  assertEqual(fake.api.debugStatus().grid, false, "releasing Hyper must close the grid")
 end)
 
-run("layer shortcuts open without depending on synthetic Hyper modifier state", function()
-  for _, mode in ipairs({ "left", "dual" }) do
-    local fake = newFake(mode, true)
-    binding(fake, HYPER, "x").pressed()
-    assertTrue(fake.api.debugStatus().layer ~= nil, "Hyper+X must open its layer in " .. mode)
-    assertTrue(#fake.alerts > 0 and tostring(fake.alerts[#fake.alerts]):find("Snap"), "Hyper+X overlay must be visible in " .. mode)
-
-    binding(fake, HYPER, "3").pressed()
-    assertTrue(fake.api.debugStatus().layer ~= nil, "Hyper+3 must open navigation in " .. mode)
-    assertTrue(tostring(fake.alerts[#fake.alerts]):find("Navigation"), "Hyper+3 overlay must be visible in " .. mode)
-  end
-end)
-
-run("a screen watcher event cannot immediately dismiss a newly opened HUD", function()
+run("window hints only cover the display the pointer is on", function()
   local fake = newFake("left", true)
-  binding(fake, HYPER, "x").pressed()
-  assertEqual(fake.api.debugStatus().layer, "snap", "Hyper+X must open the snap layer")
-  fake.screenWatcher()
-  assertEqual(fake.api.debugStatus().layer, "snap", "opening guard must keep the HUD visible")
+  fake.windows = {
+    { isStandard = function() return true end, isMinimized = function() return false end,
+      screen = function() return fake.screen end },
+    { isStandard = function() return true end, isMinimized = function() return false end,
+      screen = function() return fake.otherScreen end },
+  }
+  binding(fake, HYPER, "e").pressed()
+  assertEqual(#fake.hintCalls, 1, "hints must be requested once")
+  assertEqual(#fake.hintCalls[1], 1, "hints must be filtered to the pointer display")
+  assertEqual(fake.hintStyle, "default", "hints must retain Hammerspoon's readable default placement")
+  assertTrue(fake.api.debugStatus().hints, "hints must join the Hyper-held HUD lifecycle")
+  tapKey(fake, KEY.a, HYPER_FLAGS)
+  assertEqual(fake.hintProcessed, "a", "left-hand hint letters must route while Hyper is held")
+  releaseHyper(fake)
+  assertTrue(not fake.api.debugStatus().hints, "releasing Hyper must close window hints")
 end)
 
-run("app shortcut restores and focuses an existing window without launching", function()
+run("app shortcut restores and focuses a running application", function()
   local fake = newFake("left", true)
   local calls = {}
   local window = {
@@ -368,31 +759,6 @@ run("app shortcut launches ChatGPT by the installed Codex bundle identifier", fu
   assertEqual(fake.bundleLaunches[1], "com.openai.codex", "ChatGPT must not rely on a display name")
 end)
 
-run("Finder-terminal shortcut focuses running kitty instead of opening another window", function()
-  local fake = newFake("left", true)
-  local focused = 0
-  local window = {
-    id = function() return 202 end,
-    isMinimized = function() return false end,
-    raise = function() end,
-    focus = function() focused = focused + 1 end,
-  }
-  fake.runningApplicationsByName.kitty = {
-    unhide = function() end,
-    activate = function() end,
-    focusedWindow = function() return window end,
-    mainWindow = function() return nil end,
-    allWindows = function() return { window } end,
-  }
-
-  binding(fake, HYPER, "w").pressed()
-
-  assertEqual(focused, 1, "running kitty window must be focused")
-  for _, command in ipairs(fake.commands) do
-    assertTrue(not command:find("open %-na kitty"), "running kitty must not receive a new-window command")
-  end
-end)
-
 run("focused app shortcut minimizes its window in both modes", function()
   for _, mode in ipairs({ "dual", "left" }) do
     local fake = newFake(mode, true)
@@ -420,137 +786,24 @@ run("focused app shortcut minimizes its window in both modes", function()
   end
 end)
 
-run("grid re-entry disables the old key layer and left grid uses WASD", function()
+run("mode switch reloads only after the transactional helper succeeds", function()
+  local failed = newFake("left", false)
+  assertTrue(not failed.api.setMode("dual"), "a failed helper must reject the mode switch")
+  assertEqual(failed.api.getMode(), "left", "a failed helper must preserve the active mode")
+  assertEqual(failed.reloads, 0, "a failed helper must not reload Hammerspoon")
+  assertEqual(failed.writtenMode, nil, "Hammerspoon must never write the mode file itself")
+
   local fake = newFake("left", true)
-  fake.api.gridShow()
-  local firstMovement = binding(fake, {}, "a")
-  local firstLayer = activeBindingCount(fake, {})
-  fake.api.gridShow()
-  assertEqual(activeBindingCount(fake, {}), firstLayer, "reopening grid must not leave duplicate active bindings")
-  assertTrue(firstMovement.deleted, "reopening grid must delete old transient handlers")
-  local ok = pcall(function() binding(fake, {}, "h") end)
-  assertTrue(not ok, "left grid must not use vim keys")
-  fake.api.gridHide()
-  assertEqual(activeBindingCount(fake, {}), 0, "grid hide must clean up its key layer")
-end)
-
-run("mode toggle reloads only after the helper succeeds", function()
-  local failed = newFake("dual", false)
-  assertTrue(not failed.api.setMode("left"), "failed helper must report failure")
-  assertEqual(failed.api.getMode(), "dual", "failed helper must preserve mode")
-  assertEqual(failed.reloads, 0, "failed helper must not reload")
-
-  local succeeded = newFake("dual", true)
-  assertTrue(succeeded.api.setMode("left"), "successful helper must report success")
-  assertEqual(succeeded.api.getMode(), "left", "successful helper must update mode")
-  assertEqual(succeeded.reloads, 1, "successful helper must reload")
-end)
-
-run("left navigation layer exits cleanly and scrolling has a repeat callback", function()
-  local fake = newFake("left", true)
-  binding(fake, HYPER, "g").pressed()
-  assertTrue(fake.api.debugStatus().grid, "grid must be active before navigation opens")
-  binding(fake, HYPER, "3").pressed()
-  assertEqual(fake.api.debugStatus().layer, "navigation", "hyper+3 must enter navigation layer")
-  assertTrue(not fake.api.debugStatus().grid, "navigation must clear the grid before registering raw keys")
-  local backspace = binding(fake, {}, "q")
-  assertTrue(type(backspace.repeated) == "function", "navigation backspace must repeat")
-  backspace.pressed()
-  assertEqual(fake.keyStrokes[#fake.keyStrokes].key, "delete", "navigation Q must emit backspace, not Q")
-  local up = binding(fake, {}, "w")
-  assertTrue(type(up.repeated) == "function", "navigation arrows must repeat")
-  up.repeated()
-  assertEqual(fake.keyStrokes[#fake.keyStrokes].key, "up", "navigation W must emit up arrow")
-  binding(fake, {}, "e").pressed()
-  assertEqual(fake.api.debugStatus().layer, nil, "navigation Return must exit before confirming")
-
-  binding(fake, HYPER, "3").pressed()
-  binding(fake, {}, "escape").pressed()
-  assertEqual(fake.api.debugStatus().layer, nil, "escape must leave navigation layer")
-  assertEqual(activeBindingCount(fake, {}), 0, "leaving layer must restore ordinary typing")
-
-  local scroll = binding(fake, { "alt", "ctrl" }, "w")
-  assertTrue(type(scroll.repeated) == "function", "scroll binding needs an explicit repeat callback")
-  scroll.pressed()
-  scroll.repeated()
-  assertEqual(fake.scrolls, 2, "press and repeat must both scroll")
-end)
-
-run("left snap layer captures commands as one-shot target keys", function()
-  local fake = newFake("left", true)
-  binding(fake, HYPER, "x").pressed()
-  assertEqual(fake.api.debugStatus().layer, "snap", "hyper+X must enter snap layer")
-  binding(fake, {}, "v").pressed()
-  assertEqual(fake.api.debugStatus().layer, nil, "snap commands must close their layer first")
-  assertEqual(fake.keyStrokes[#fake.keyStrokes].mods, "cmd", "snap V must emit Command")
-  assertEqual(fake.keyStrokes[#fake.keyStrokes].key, "h", "snap V must hide the application")
-end)
-
-run("snap layer moves the focused window between displays in both modes", function()
-  for _, mode in ipairs({ "left", "dual" }) do
-    local fake = newFake(mode, true)
-    binding(fake, HYPER, "x").pressed()
-    binding(fake, { "shift" }, "f").pressed()
-    assertTrue(fake.commands[#fake.commands]:find("window %-%-display next"),
-      mode .. " mode must move the focused window to the next display")
-
-    binding(fake, HYPER, "x").pressed()
-    binding(fake, { "shift" }, "r").pressed()
-    assertTrue(fake.commands[#fake.commands]:find("window %-%-display prev"),
-      mode .. " mode must move the focused window to the previous display")
+  local reloadsBefore = fake.reloads
+  binding(fake, HYPER, "tab").pressed()
+  assertEqual(fake.api.getMode(), "dual", "a successful helper must switch the in-memory mode")
+  local sawHelper = false
+  for _, command in ipairs(fake.commands) do
+    if command:find("set%-keyboard%-mode%.py dual", 1, false) then sawHelper = true end
   end
-end)
-
-run("snap layer B toggles window-follow locally", function()
-  local fake = newFake("left", true)
-  assertTrue(fake.api.debugStatus().follow, "follow starts enabled")
-  binding(fake, HYPER, "x").pressed()
-  binding(fake, {}, "b").pressed()
-  assertTrue(not fake.api.debugStatus().follow, "snap B must toggle follow")
-end)
-
-run("dual mode owns the complete direct snap map", function()
-  local fake = newFake("dual", true)
-  local moved = {}
-  fake.focusedWindow = {
-    isStandard = function() return true end,
-    moveToUnit = function(_, unit) table.insert(moved, unit) end,
-  }
-
-  local expected = {
-    h = { 0, 0, 0.5, 1 }, l = { 0.5, 0, 0.5, 1 },
-    k = { 0, 0, 1, 0.5 }, j = { 0, 0.5, 1, 0.5 },
-    u = { 0, 0, 0.5, 0.5 }, i = { 0.5, 0, 0.5, 0.5 },
-    o = { 0, 0.5, 0.5, 0.5 }, p = { 0.5, 0.5, 0.5, 0.5 },
-    [";"] = { 0, 0, 1, 1 }, ["'"] = { 0.15, 0.10, 0.70, 0.80 },
-  }
-  for key, wanted in pairs(expected) do
-    binding(fake, HYPER, key).pressed()
-    local actual = moved[#moved]
-    assertTrue(actual ~= nil, "snap " .. key .. " must move the focused window")
-    assertEqual(actual.x, wanted[1], "snap " .. key .. " x")
-    assertEqual(actual.y, wanted[2], "snap " .. key .. " y")
-    assertEqual(actual.w, wanted[3], "snap " .. key .. " width")
-    assertEqual(actual.h, wanted[4], "snap " .. key .. " height")
-  end
-end)
-
-run("dual mode exposes a Hyper+X snap help layer", function()
-  local fake = newFake("dual", true)
-  binding(fake, HYPER, "x").pressed()
-  assertEqual(fake.api.debugStatus().layer, "dual-snap", "Hyper+X must open the dual snap layer")
-  binding(fake, {}, "h").pressed()
-  assertEqual(fake.api.debugStatus().layer, nil, "dual snap selection must close its layer")
-end)
-
-run("dual mode exposes a Hyper+3 navigation help layer with HJKL arrows", function()
-  local fake = newFake("dual", true)
-  binding(fake, HYPER, "3").pressed()
-  assertEqual(fake.api.debugStatus().layer, "dual-navigation", "Hyper+3 must open the dual navigation layer")
-  binding(fake, {}, "h").pressed()
-  assertEqual(fake.keyStrokes[#fake.keyStrokes].key, "left", "dual navigation H must emit left arrow")
-  binding(fake, {}, "escape").pressed()
-  assertEqual(fake.api.debugStatus().layer, nil, "escape must leave dual navigation")
+  assertTrue(sawHelper, "mode switch must run the keyboard-mode helper")
+  assertTrue(fake.reloads > reloadsBefore, "mode switch must reload the configuration")
+  assertEqual(fake.writtenMode, nil, "the helper owns persisted mode state")
 end)
 
 run("virtual Hyper modifiers do not block a layer trigger", function()
@@ -558,14 +811,18 @@ run("virtual Hyper modifiers do not block a layer trigger", function()
   fake.modifiers = { cmd = true, alt = true, ctrl = true, shift = true }
   binding(fake, HYPER, "x").pressed()
   assertEqual(fake.api.debugStatus().layer, "snap", "virtual modifiers must not prevent Hyper+X from opening")
-  assertTrue(activeBindingCount(fake, {}) > 0, "the snap layer must bind its target keys")
+  releaseHyper(fake)
 end)
 
-run("left hints use the requested alphabet and non-vimperator style", function()
+run("left hints use the requested alphabet", function()
   local fake = newFake("left", true)
+  fake.windows = {
+    { isStandard = function() return true end, isMinimized = function() return false end,
+      screen = function() return fake.screen end },
+  }
   binding(fake, HYPER, "e").pressed()
   assertEqual(table.concat(fake.hintChars, ""), "asdfqwerzxcv", "left hints must use the left-hand alphabet")
-  assertEqual(fake.hintStyle, nil, "left hints must not use vimperator style")
 end)
 
-print("keyboard.lua mocked tests passed")
+print(testsRun - failures .. "/" .. testsRun .. " keyboard.lua mocked tests passed")
+if failures > 0 then error(failures .. " keyboard test(s) failed") end

@@ -34,8 +34,12 @@ def normalized_commands(path: Path) -> set[str]:
 
 
 class ProfileContractTest(unittest.TestCase):
+    # Deliberate 2026-09-10 change: the previous-display shortcut was removed;
+    # "next display" is now the single looping display shortcut.
+    REMOVED_CHORDS = {"alt - left"}
+
     def test_two_hand_profile_preserves_existing_chords(self):
-        self.assertEqual(chords(MANAGED / "skhdrc-dual"), chords(BASELINE))
+        self.assertEqual(chords(MANAGED / "skhdrc-dual"), chords(BASELINE) - self.REMOVED_CHORDS)
 
     def test_left_profile_never_requires_a_right_side_key(self):
         allowed = set("12345qwertasdfgzxcvb") | {"tab", "escape", "space"}

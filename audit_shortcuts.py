@@ -24,23 +24,9 @@ def normalize_chord(chord: str) -> str:
 def hammerspoon_hyper_bindings(path: Path) -> list[dict[str, str]]:
     source = path.read_text()
     keys = set(re.findall(r'hs\.hotkey\.bind\(hyper,\s*"([^"]+)"', source))
-    inline_loops = re.findall(
-        r'for key,\s*\w+\s+in pairs\(\{(.*?)\}\) do\s*\n\s*hs\.hotkey\.bind\(hyper,\s*key,',
-        source,
-        re.DOTALL,
-    )
-    table_names = re.findall(
-        r'for key,\s*\w+\s+in pairs\((\w+)\) do\s*\n\s*hs\.hotkey\.bind\(hyper,\s*key,',
-        source,
-    )
-    table_bodies = list(inline_loops)
-    for table_name in table_names:
-        table = re.search(rf'local {re.escape(table_name)}\s*=\s*\{{(.*?)\n\s*\}}', source, re.DOTALL)
-        if table:
-            table_bodies.append(table.group(1))
-    for body in table_bodies:
-        for quoted, plain in re.findall(r'(?:\["([^"]+)"\]|\b([a-z0-9_]+))\s*=', body):
-            keys.add(quoted or plain)
+    keys |= set(re.findall(r'bindDirect\("([^"]+)"', source))
+    for listed in re.findall(r"-- HUDKEYS \w+: (.+)", source):
+        keys |= {token for token in listed.split()}
     return [
         {"owner": "Hammerspoon", "action": f"configured Hyper+{key}", "chord": normalize_chord(f"cmd+alt+ctrl+shift+{key}")}
         for key in sorted(keys)
