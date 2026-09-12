@@ -15,6 +15,31 @@ ring and wraps from the final display back to the first.
 Read [CHEATSHEET.md](CHEATSHEET.md) for the complete map and
 [METHODOLOGY.md](METHODOLOGY.md) for the ownership and recovery model.
 
+## Direct shortcut quick reference
+
+These actions work immediately without opening a HUD. The complete direct
+Hammerspoon and skhd maps are listed one shortcut per row in the cheat sheet.
+
+| Mode | Shortcut | Action |
+| :--- | :--- | :--- |
+| Both | Hyper + A | Toggle Arc |
+| Both | Hyper + C | Toggle ChatGPT |
+| Both | Hyper + F | Toggle Finder |
+| Both | Hyper + T | Toggle kitty |
+| Both | Hyper + Space | Open Raycast |
+| Both | Hyper + R | Open running-app switcher |
+| Both | Hyper + V | Open clipboard history |
+| Both | Hyper + E | Show window hints |
+| Both | Hyper + G | Open mouse grid |
+| Both | Hyper + Y | Shift + Tab; automatically promoted unique action |
+| LH | Hyper + N | New browser tab; automatically promoted unique action |
+| LH | Option + G | Move window to next display and wrap |
+| 2H | Option + Right | Move window to next display and wrap |
+
+The workflow also promotes a HUD action to a direct Hyper shortcut whenever
+its key has exactly one meaning in the active mode and no existing direct owner.
+Reused keys stay inside their HUD so one chord never performs two actions.
+
 ## Install
 
 Clone the repository, then run:

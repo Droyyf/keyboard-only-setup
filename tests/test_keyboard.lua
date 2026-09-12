@@ -340,6 +340,30 @@ run("module loads for both hand modes and reports the mode", function()
   for _, mode in ipairs({ "left", "dual" }) do
     local fake = newFake(mode, true)
     assertEqual(fake.api.getMode(), mode, mode .. " mode must be read from the mode file")
+    assertTrue(fake.api._menubar ~= nil, mode .. " mode must retain its menu bar indicator")
+  end
+end)
+
+run("unambiguous registry keys are promoted to direct shortcuts automatically", function()
+  for _, mode in ipairs({ "left", "dual" }) do
+    local fake = newFake(mode, true)
+    local automatic = fake.api.debugStatus().automaticDirectKeys
+    assertTrue(#automatic > 0, mode .. " mode must expose at least one automatic direct shortcut")
+    local sawY = false
+    for _, key in ipairs(automatic) do
+      if key == "y" then sawY = true end
+      assertTrue(findBinding(fake, HYPER, key) ~= nil,
+        mode .. " automatic key " .. key .. " must have a live direct binding")
+    end
+    assertTrue(sawY, mode .. " mode must promote the unique Shift+Tab action on Y")
+    local hasN = false
+    for _, key in ipairs(automatic) do if key == "n" then hasN = true end end
+    assertEqual(hasN, mode == "left",
+      "N must be promoted only in LH, where the 2H next-window owner is absent")
+    binding(fake, HYPER, "y").pressed()
+    local stroke = fake.keyStrokes[#fake.keyStrokes]
+    assertEqual(stroke.key, "tab", "automatic Hyper+Y must execute Shift+Tab")
+    assertEqual(stroke.mods, "shift", "automatic Hyper+Y must retain the layer action modifiers")
   end
 end)
 

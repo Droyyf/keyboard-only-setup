@@ -186,6 +186,7 @@ local referenceCanvas = nil
 local hudTimer = nil
 local directHotkeys = {}         -- Carbon fallback bindings; callbacks are guarded while a HUD is open
 local directActions = {}         -- eventtap-owned first-key dispatch by key name
+local automaticDirectKeys = {}   -- registry actions promoted because their key has one meaning
 local hudSwitchActions = {}      -- top-level HUD identifiers available inside every open HUD
 local hyperDown = false
 local snapTarget = nil
@@ -1345,7 +1346,7 @@ local function buildRegistry(mode)
       { key = "v", label = "Previous Space", action = function()
           runYabaiCommand("-m space --focus prev", "Space command failed")
         end },
-      { key = "x", label = "Space to other display", action = moveSpaceToOtherDisplay },
+      { key = "c", label = "Space to other display", action = moveSpaceToOtherDisplay },
       { key = "t", label = "Float ↔ BSP layout", action = toggleYabaiLayout },
       { key = "b", label = "Snap & system…", action = function()
           enterLayerById(mode == "left" and "snap" or "dual-snap")
@@ -1606,10 +1607,32 @@ else
     [";"] = "Maximize", ["'"] = "Center",
   }
   for key, unit in pairs(dualSnapUnits) do
-    table.insert(directHotkeys, hs.hotkey.bind(hyper, key, function() snapFocusedWindow(unit) end))
-    addDirectReference(key, unitLabels[key], "Direct snapping")
+    bindDirect(key, function() snapFocusedWindow(unit) end, unitLabels[key], "Direct snapping")
   end
 end
+
+-- Promote a layer action to a direct Hyper shortcut only when its key occurs
+-- once across the active registry and no explicit direct action already owns
+-- that key. The registry remains the source of truth as shortcuts evolve.
+local function bindUnambiguousLayerActions()
+  local counts = {}
+  for _, layer in ipairs(REGISTRY.layers) do
+    for _, item in ipairs(layer.keys) do
+      counts[item.key] = (counts[item.key] or 0) + 1
+    end
+  end
+  for _, layer in ipairs(REGISTRY.layers) do
+    for _, item in ipairs(layer.keys) do
+      if counts[item.key] == 1 and not directActions[item.key] and not hudSwitchActions[item.key] then
+        bindDirect(item.key, item.action, item.label, "Automatic direct shortcuts")
+        table.insert(automaticDirectKeys, item.key)
+      end
+    end
+  end
+  table.sort(automaticDirectKeys)
+end
+
+bindUnambiguousLayerActions()
 
 local function configureMenubar()
   menubar = hs.menubar.new(true)
@@ -1685,10 +1708,12 @@ return {
       grid = gridState ~= nil,
       follow = followEnabled,
       hyper = hyperDown,
+      automaticDirectKeys = automaticDirectKeys,
     }
   end,
   -- Retain watchers and the event tap so they cannot be garbage-collected.
   _screenWatcher = screenWatcher,
+  _menubar = menubar,
   _appearanceWatcher = appearanceWatcher,
   _appWatcher = appWatcher,
   _closeWatcher = closeWatcher,

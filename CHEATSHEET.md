@@ -1,181 +1,306 @@
-# Two-hand and left-hand shortcuts
+# Keyboard workflow shortcut reference
 
-**Hyper = hold Caps Lock** (Raycast supplies ⌘⌥⌃⇧).
+**Hyper** means holding **Caps Lock**. Raycast maps Caps Lock to Command + Option + Control + Shift. **Both** means the shortcut is identical in LH and 2H modes.
 
-- **Caps Lock + Tab:** switch between **2H** (two hands) and **LH** (left hand).
-- **Caps Lock + /:** open the interactive **Action Hub** in either mode.
-- **Caps Lock + `:** show the complete shortcut reference.
-- **2H / LH in the menu bar:** see the current mode or select one with the mouse.
-- **Caps Lock + Escape:** reload the configuration.
+## Essential controls
 
-## Hyper-held HUD
+| Mode | Shortcut | Action |
+| :--- | :--- | :--- |
+| Both | Hyper + Tab | Switch between LH and 2H modes |
+| Both | Hyper + / | Open the Action Hub |
+| Both | Hyper + X | Open Snap & System |
+| Both | Hyper + 3 | Open Navigation |
+| Both | Hyper + ` | Open the complete shortcut reference |
+| Both | Hyper + Escape | Reload Hammerspoon and skhd |
+| 2H | Hyper + 0 | Reload Hammerspoon and skhd |
 
-Every visual menu — the Action Hub, each layer, the complete reference, and the
-mouse grid — is **visible only while Caps Lock is held**. You never release
-Caps Lock and never add Shift, Fn, or anything else:
+Keep holding Hyper while a HUD is visible. Press `/`, `X`, `3`, or backtick to switch HUDs. Use a displayed key directly, or select with arrows or Tab and run with Return. Release Hyper to close.
 
-1. Hold **Caps Lock**.
-2. Press **/** (or X for snapping, 3 for navigation, ` for the reference).
-3. Keep holding Caps Lock and press a displayed shortcut directly, or use the
-   arrow keys/Tab to select an entry and Return to run it.
-4. Release Caps Lock — the menu closes itself.
+## Direct Hammerspoon shortcuts
 
-While any HUD is open, **/**, **X**, **3**, and **`** immediately switch to
-the Action Hub, Snap, Navigation, or complete reference without releasing Caps Lock.
+| Mode | Shortcut | Action |
+| :--- | :--- | :--- |
+| Both | Hyper + A | Toggle Arc: launch, focus, or minimize |
+| Both | Hyper + C | Toggle ChatGPT: launch, focus, or minimize |
+| Both | Hyper + F | Toggle Finder: launch, focus, or minimize |
+| Both | Hyper + T | Toggle kitty: launch, focus, or minimize |
+| Both | Hyper + Space | Open Raycast |
+| Both | Hyper + R | Open the running-app switcher |
+| Both | Hyper + V | Open clipboard history |
+| Both | Hyper + E | Show window hints on the pointer display |
+| Both | Hyper + G | Open the keyboard mouse grid |
+| Both | Hyper + 5 | Search menu-bar commands |
+| 2H | Hyper + N | Focus the next window of the current app |
+| LH | Hyper + 4 | Focus the next window of the current app |
+| 2H | Hyper + Up | Increase volume |
+| 2H | Hyper + Down | Decrease volume |
+| LH | Hyper + Q | Increase volume |
+| LH | Hyper + Z | Decrease volume |
+| Both | Hyper + M | Toggle mute |
+| Both | Hyper + B | Toggle macOS light or dark appearance |
+| Both | Hyper + S | Save the current window layout |
+| Both | Hyper + D | Restore the saved window layout |
+| Both | Hyper + W | Open kitty at the Finder folder, or focus kitty |
+| Both | Hyper + Y | Shift + Tab; automatically promoted because Y is unique |
+| LH | Hyper + N | New browser tab; automatically promoted because N is unique in LH |
 
-Menus also auto-dismiss after 15 s of inactivity, and any key pressed without
-the Hyper modifiers closes them (so a stuck modifier can never trap typing).
-The HUD is flat and opaque: AMOLED black in system dark mode and warm creamy
-white in system light mode, with the system accent colour used for key labels.
+## Direct 2H snapping
 
-The complete reference is paged so it stays readable on any display. Hold
-Caps Lock and use arrows, Tab, **[**, or **]** to change page; its entries are generated from
-the active shortcut registry.
+| Shortcut | Action |
+| :--- | :--- |
+| Hyper + H | Snap left half |
+| Hyper + J | Snap bottom half |
+| Hyper + K | Snap top half |
+| Hyper + L | Snap right half |
+| Hyper + U | Snap top-left quarter |
+| Hyper + I | Snap top-right quarter |
+| Hyper + O | Snap bottom-left quarter |
+| Hyper + P | Snap bottom-right quarter |
+| Hyper + ; | Maximize |
+| Hyper + ' | Center |
 
-Window hints follow the same held-Hyper rule: press **E**, then their hint
-letter before releasing Caps Lock. Shortcat is different: it opens Shortcat's
-own search surface after the workflow shortcut has been executed.
+## Direct scrolling
+
+| Mode | Shortcut | Action |
+| :--- | :--- | :--- |
+| 2H | Control + Option + Up | Scroll up |
+| 2H | Control + Option + Down | Scroll down |
+| 2H | Control + Option + Left | Scroll left |
+| 2H | Control + Option + Right | Scroll right |
+| LH | Control + Option + W | Scroll up |
+| LH | Control + Option + S | Scroll down |
+| LH | Control + Option + A | Scroll left |
+| LH | Control + Option + D | Scroll right |
+
+## Direct skhd shortcuts: LH
+
+| Shortcut | Action |
+| :--- | :--- |
+| Option + W | Focus window above |
+| Option + A | Focus window left |
+| Option + S | Focus window below |
+| Option + D | Focus window right |
+| Option + Q | Focus next window |
+| Option + Shift + W | Move or swap window up |
+| Option + Shift + A | Move or swap window left |
+| Option + Shift + S | Move or swap window down |
+| Option + Shift + D | Move or swap window right |
+| Fn + W | Resize from top edge |
+| Fn + A | Resize from left edge |
+| Fn + S | Resize from bottom edge |
+| Fn + D | Resize from right edge |
+| Option + 1 | Focus Space 1 |
+| Option + 2 | Focus Space 2 |
+| Option + 3 | Focus Space 3 |
+| Option + 4 | Focus Space 4 |
+| Option + 5 | Focus Space 5 |
+| Option + Shift + 1 | Send window to Space 1 and follow |
+| Option + Shift + 2 | Send window to Space 2 and follow |
+| Option + Shift + 3 | Send window to Space 3 and follow |
+| Option + Shift + 4 | Send window to Space 4 and follow |
+| Option + Shift + 5 | Send window to Space 5 and follow |
+| Option + Z | Focus next Space |
+| Option + X | Focus previous Space |
+| Option + E | Toggle fullscreen |
+| Option + R | Toggle floating |
+| Option + F | Move current Space to the other display |
+| Option + G | Move focused window to next display and wrap |
+| Option + T | Toggle float or BSP layout |
+
+## Direct skhd shortcuts: 2H
+
+| Shortcut | Action |
+| :--- | :--- |
+| Option + H | Focus window left |
+| Option + J | Focus window below |
+| Option + K | Focus window above |
+| Option + L | Focus window right |
+| Option + Tab | Focus next window |
+| Option + Shift + H | Move or swap window left |
+| Option + Shift + J | Move or swap window down |
+| Option + Shift + K | Move or swap window up |
+| Option + Shift + L | Move or swap window right |
+| Fn + H | Resize from left edge |
+| Fn + J | Resize from bottom edge |
+| Fn + K | Resize from top edge |
+| Fn + L | Resize from right edge |
+| Option + 1 | Focus Space 1 |
+| Option + 2 | Focus Space 2 |
+| Option + 3 | Focus Space 3 |
+| Option + 4 | Focus Space 4 |
+| Option + 5 | Focus Space 5 |
+| Option + 6 | Focus Space 6 |
+| Option + 7 | Focus Space 7 |
+| Option + 8 | Focus Space 8 |
+| Option + 9 | Focus Space 9 |
+| Option + Shift + 1 | Send window to Space 1 and follow |
+| Option + Shift + 2 | Send window to Space 2 and follow |
+| Option + Shift + 3 | Send window to Space 3 and follow |
+| Option + Shift + 4 | Send window to Space 4 and follow |
+| Option + Shift + 5 | Send window to Space 5 and follow |
+| Option + Shift + 6 | Send window to Space 6 and follow |
+| Option + Shift + 7 | Send window to Space 7 and follow |
+| Option + Shift + 8 | Send window to Space 8 and follow |
+| Option + Shift + 9 | Send window to Space 9 and follow |
+| Option + Z | Focus next Space |
+| Option + V | Focus previous Space |
+| Option + F | Toggle fullscreen |
+| Option + S | Toggle floating |
+| Option + X | Move current Space to the other display |
+| Option + Right | Move focused window to next display and wrap |
+| Option + T | Toggle float or BSP layout |
 
 ## Action Hub
 
-Press **Hyper+/**, hold, then choose an area. Every action in this workflow is
-available from one of these HUD routes while its direct shortcut remains
-available as the faster path. The same six entry keys work in **LH** and
-**2H** mode.
+| Key | Opens |
+| :--- | :--- |
+| A | Apps |
+| S | Windows |
+| W | Spaces |
+| D | System |
+| F | Navigation |
+| R | Utilities |
+| ` | Complete shortcut reference |
 
-| Key | Route | Includes |
-|---|---|---|
-| A | Apps | App toggles, Raycast, clipboard, hints, mouse grid, Shortcat |
-| S | Windows | Focus, move, resize, fullscreen, float, displays, layouts |
-| W | Spaces | Focus, or send the focused window |
-| D | System | Volume, mute, scrolling, appearance |
-| F | Navigation | Arrows, selection, editing, browser tabs |
-| R | Utilities | Layout snapshots, kitty folder, window-follow, mode switch, reload |
-| ` | Reference | The complete read-only shortcut reference |
+## Windows HUD
 
-## Everyday actions
+| Mode | Key | Action |
+| :--- | :--- | :--- |
+| 2H | H | Focus left |
+| 2H | J | Focus down |
+| 2H | K | Focus up |
+| 2H | L | Focus right |
+| LH | W | Focus up |
+| LH | A | Focus left |
+| LH | S | Focus down |
+| LH | D | Focus right |
+| Both | M | Toggle move or swap mode |
+| Both | E | Toggle resize mode |
+| Both | Q | Focus next window of current app |
+| Both | F | Toggle fullscreen |
+| Both | R | Toggle floating |
+| LH | 4 | Move window to next display and wrap |
+| 2H | N | Move window to next display and wrap |
+| Both | Z | Focus next Space |
+| Both | V | Focus previous Space |
+| Both | C | Move current Space to other display |
+| Both | T | Toggle float or BSP layout |
+| Both | B | Open Snap & System |
 
-| Action | Two hands | Left hand |
-|---|---|---|
-| Arc / ChatGPT / Finder / kitty | Hyper+A / C / F / T | Same |
-| Running-app switcher | Hyper+R, then a displayed app key while held | Same |
-| Raycast | Hyper+Space | Same |
-| Clipboard history | Hyper+V | Same |
-| Menu search | Hyper+5 | Same |
-| Window hints (pointer display only) | Hyper+E, then its hint letter while held | Same |
-| Next window of current app | Hyper+N | Hyper+4 |
-| Mouse grid | Hyper+G | Same; controls below |
-| Save / restore window layout | Hyper+S / D | Same |
-| Dark mode | Hyper+B | Same |
-| Volume up / down / mute | Hyper+↑ / ↓ / M | Hyper+Q / Z / M |
-| kitty at Finder folder when closed; focus kitty when open | Hyper+W | Same |
-| Shortcat (⌘⇧Space) | Inside the Apps layer, Q | Same |
-| Interactive Action Hub / complete reference | Hyper+/ / Hyper+` | Same |
-| Reload | Hyper+0 or Hyper+Escape | Hyper+Escape |
-
-The application shortcuts work as toggles in both modes: launch the
-application when closed, restore and focus its existing window when it is in
-the background, and minimize its window when it is already focused. Hyper+W
-follows the same rule for kitty; the Finder folder is used only when kitty
-needs to be launched.
-
-## Windows layer (S from the hub)
-
-Arrows are plain mode arrows (2H: H/J/K/L, LH: W/A/S/D) and repeat while held.
-The layer has three arrow modes, switched with plain keys — the HUD always
-shows the active one:
+## Spaces HUD
 
 | Key | Action |
-|---|---|
-| Arrows | Focus neighbouring window (default mode) |
-| M | Toggle **move/swap** mode for the arrows |
-| E | Toggle **resize** mode for the arrows |
-| Q | Next window of current app |
-| F / R | Toggle fullscreen / float |
-| 2H: N / LH: 4 | **Move window to next display — one key that loops** back to the first |
-| Z / V | Next / previous Space |
-| X | Move Space to the other display |
-| T | Float ↔ BSP layout |
-| B | Snap & system layer |
+| :--- | :--- |
+| 1 | Focus Space 1 |
+| 2 | Focus Space 2 |
+| 3 | Focus Space 3 |
+| 4 | Focus Space 4 |
+| 5 | Focus Space 5 |
+| Q | Focus Space 6 |
+| W | Focus Space 7 |
+| E | Focus Space 8 |
+| R | Focus Space 9 |
+| S | Toggle send-and-follow mode |
 
-## Displays — one looping shortcut
+## System HUD
 
-There is a single "move window to next display" action everywhere: **4** in
-the LH Windows and Snap layers, **N** in the 2H layers, and ⌥G (LH) or ⌥→ (2H) outside the HUD. It always
-advances to the next display in ring order and wraps from the last display
-back to the first. There is no separate previous-display shortcut.
+| Mode | Key | Action |
+| :--- | :--- | :--- |
+| Both | Q | Increase volume |
+| Both | Z | Decrease volume |
+| Both | M | Toggle mute |
+| 2H | K | Scroll up |
+| 2H | H | Scroll left |
+| 2H | J | Scroll down |
+| 2H | L | Scroll right |
+| LH | W | Scroll up |
+| LH | A | Scroll left |
+| LH | S | Scroll down |
+| LH | D | Scroll right |
+| Both | B | Toggle macOS appearance |
 
-## Spaces layer (W from the hub)
+There are no brightness shortcuts.
 
-| Key | Action |
-|---|---|
-| 1–5 (Q/W/E/R for 6–9) | Focus that Space |
-| S | Toggle **send & follow** — numbers then move the focused window |
-| Escape / release Caps Lock | Close |
+## Navigation HUD
 
-## System layer (D from the hub)
+| Mode | Key | Action |
+| :--- | :--- | :--- |
+| 2H | K | Caret up |
+| 2H | H | Caret left |
+| 2H | J | Caret down |
+| 2H | L | Caret right |
+| LH | W | Caret up |
+| LH | A | Caret left |
+| LH | S | Caret down |
+| LH | D | Caret right |
+| Both | T | Toggle selection for caret movement |
+| Both | Q | Backspace |
+| Both | F | Forward delete |
+| Both | E | Return or confirm |
+| Both | R | Tab |
+| Both | Y | Shift + Tab |
+| Both | Z | Page up |
+| Both | C | Page down |
+| Both | G | Focus browser address bar |
+| Both | 4 | Find |
+| Both | B | Previous browser tab |
+| Both | V | Next browser tab |
+| Both | N | New browser tab |
+| Both | 5 | Close browser tab |
+| Both | 1 | Browser back |
+| Both | 2 | Browser forward |
 
-| Key | Action |
-|---|---|
-| Q / Z | Volume up / down |
-| M | Mute |
-| Arrows | Scroll (repeat) — 2H: H/J/K/L, LH: W/A/S/D |
-| B | Toggle dark appearance |
+## Snap & System HUD
 
-There are **no brightness shortcuts**; use the keyboard's brightness keys.
-Direct scrolling outside the HUD: ⌃⌥arrows (2H) / ⌃⌥W/A/S/D (LH).
+| Mode | Key | Action |
+| :--- | :--- | :--- |
+| LH | A | Snap left half |
+| LH | S | Snap bottom half |
+| LH | W | Snap top half |
+| LH | D | Snap right half |
+| LH | Q | Snap top-left quarter |
+| LH | E | Snap top-right quarter |
+| LH | Z | Snap bottom-left quarter |
+| LH | C | Snap bottom-right quarter |
+| 2H | H | Snap left half |
+| 2H | J | Snap bottom half |
+| 2H | K | Snap top half |
+| 2H | L | Snap right half |
+| 2H | U | Snap top-left quarter |
+| 2H | I | Snap top-right quarter |
+| 2H | O | Snap bottom-left quarter |
+| 2H | P | Snap bottom-right quarter |
+| 2H | ; | Maximize |
+| 2H | ' | Center |
+| Both | F | Maximize |
+| Both | R | Center |
+| LH | 4 | Move window to next display and wrap |
+| 2H | N | Move window to next display and wrap |
+| Both | T | Open Spaces |
+| Both | B | Toggle window-follow |
+| Both | V | Hide current app |
+| Both | G | Minimize focused window |
+| Both | 1 | Open Mission Control |
+| Both | 2 | Toggle hidden Finder files |
 
-## Navigation layer (Hyper+3)
+## Mouse grid
 
-Plain keys only; arrows repeat while held:
+| Mode | Key | Action |
+| :--- | :--- | :--- |
+| 2H | K | Move up |
+| 2H | H | Move left |
+| 2H | J | Move down |
+| 2H | L | Move right |
+| LH | W | Move up |
+| LH | A | Move left |
+| LH | S | Move down |
+| LH | D | Move right |
+| Both | G | Toggle fine grid |
+| Both | C | Left-click |
+| 2H | D | Double-click |
+| LH | F | Double-click |
+| Both | X | Right-click |
 
-| Key | Action |
-|---|---|
-| Arrows (2H: H/J/K/L, LH: W/A/S/D) | Caret movement |
-| T | Toggle **select** mode — arrows extend the selection |
-| Q / F | Backspace / forward delete |
-| E | Return / confirm |
-| R / Y | Tab / Shift+Tab |
-| Z / C | Page up / page down |
-| G / 4 | Browser address bar / find |
-| B / V | Previous / next browser tab |
-| N / 5 | New / close browser tab |
-| 1 / 2 | Browser back / forward |
+## Shortcat
 
-## Snap & system layer (Hyper+X)
-
-LH: A/S/W/D halves, Q/E/Z/C quarters. 2H: H/J/K/L halves, U/I/O/P quarters.
-Both modes: F maximize, R center, **4 (LH) / N (2H) move window to next display (loops)**,
-T Spaces, B window-follow, V hide app, G minimize, 1 Mission Control, 2 toggle
-hidden Finder files. Two-hand mode also keeps direct Hyper+H/J/K/L/U/I/O/P/;'
-snapping.
-
-## Mouse grid (Hyper+G)
-
-A keyboard way to move and click the pointer — useful when reaching for the
-mouse is awkward. Hold Caps Lock, press G, then:
-
-| Key | Action |
-|---|---|
-| Arrows (2H: H/J/K/L, LH: W/A/S/D) | Move the selected cell |
-| G | Toggle the fine grid inside the cell |
-| C | Left click |
-| D / F (2H / LH) | Double click |
-| X | Right click |
-
-Release Caps Lock to dismiss. The grid opens on the display the pointer is on.
-
-## Shortcat (Apps layer, Q)
-
-Shortcat is a companion app (installed with the workflow) that overlays the
-current window with searchable, clickable UI elements: press Hyper, A, then Q
-(sends ⌘⇧Space), release Caps Lock, type a search term or a hint letter, and
-Return clicks the element.
-
-## Hammerspoon and yabai split
-
-Hammerspoon owns snapping in both modes: two-hand mode uses Hyper+H/J/K/L for
-halves, U/I/O/P for quarters, semicolon for maximize, and apostrophe for
-center. Left-hand mode uses the Hyper+X layer. Raycast Window Management
-remains available through Raycast search but has no global hotkeys. Snapping
-works best in float layout; BSP can retile a window afterward.
+Hold Hyper, press `/`, then `A`, then `Q`. The workflow sends Command + Shift + Space to Shortcat. Release Hyper, type a search term or hint letter, and press Return to click the selected interface element.
