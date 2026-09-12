@@ -50,7 +50,7 @@ alt - r : $HOME/.config/skhd/yabai-run.sh -m window --toggle float >/dev/null 2>
 alt - f : $HOME/.config/skhd/yabai-run.sh --script move-space-to-other-display.sh
 
 # --- move focused window to next display (loops back to the first) ---
-alt - g : $HOME/.config/skhd/yabai-run.sh -m window --display next >/dev/null 2>&1
+alt - g : $HOME/.config/skhd/cycle-window-display.sh >/dev/null 2>&1
 
 # --- toggle layout (float ↔ bsp) ---
 alt - t : $HOME/.config/skhd/yabai-run.sh --script toggle-yabai-layout.sh

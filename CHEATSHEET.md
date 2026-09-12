@@ -92,7 +92,7 @@ shows the active one:
 | E | Toggle **resize** mode for the arrows |
 | Q | Next window of current app |
 | F / R | Toggle fullscreen / float |
-| N | **Move window to next display — one key that loops** back to the first |
+| 2H: N / LH: 4 | **Move window to next display — one key that loops** back to the first |
 | Z / V | Next / previous Space |
 | X | Move Space to the other display |
 | T | Float ↔ BSP layout |
@@ -100,8 +100,8 @@ shows the active one:
 
 ## Displays — one looping shortcut
 
-There is a single "move window to next display" action everywhere: **N** in
-the Windows and Snap layers, ⌥G (LH) or ⌥→ (2H) outside the HUD. It always
+There is a single "move window to next display" action everywhere: **4** in
+the LH Windows and Snap layers, **N** in the 2H layers, and ⌥G (LH) or ⌥→ (2H) outside the HUD. It always
 advances to the next display in ring order and wraps from the last display
 back to the first. There is no separate previous-display shortcut.
 
@@ -145,7 +145,7 @@ Plain keys only; arrows repeat while held:
 ## Snap & system layer (Hyper+X)
 
 LH: A/S/W/D halves, Q/E/Z/C quarters. 2H: H/J/K/L halves, U/I/O/P quarters.
-Both modes: F maximize, R center, **N move window to next display (loops)**,
+Both modes: F maximize, R center, **4 (LH) / N (2H) move window to next display (loops)**,
 T Spaces, B window-follow, V hide app, G minimize, 1 Mission Control, 2 toggle
 hidden Finder files. Two-hand mode also keeps direct Hyper+H/J/K/L/U/I/O/P/;'
 snapping.

@@ -18,6 +18,7 @@ local home = os.getenv("HOME") or ""
 local MODE_FILE = home .. "/.config/keyboard-mode"
 local MODE_HELPER = home .. "/.config/skhd/set-keyboard-mode.py"
 local WINDOW_HELPER = home .. "/.config/skhd/win-dir.sh"
+local DISPLAY_CYCLE_HELPER = home .. "/.config/skhd/cycle-window-display.sh"
 local YABAI_HELPER = home .. "/.config/skhd/yabai-run.sh"
 
 local function firstExisting(paths)
@@ -767,27 +768,7 @@ end
 -- One looping shortcut for both displays: the focused window always moves to
 -- the next display in ring order, wrapping from the last back to the first.
 local function moveFocusedWindowToNextDisplay()
-  local target = nil
-  local ok, displays = pcall(function()
-    return hs.json.decode(hs.execute(YABAI .. " -m query --displays"))
-  end)
-  local windowOk, window = pcall(function()
-    return hs.json.decode(hs.execute(YABAI .. " -m query --windows --window"))
-  end)
-  if ok and windowOk and type(displays) == "table" and type(window) == "table" then
-    if #displays <= 1 then return end
-    if window.display then
-      for position, display in ipairs(displays) do
-        if display.index == window.display then
-          local nextDisplay = displays[(position % #displays) + 1]
-          target = nextDisplay and nextDisplay.index
-          break
-        end
-      end
-    end
-  end
-  local arguments = target and ("-m window --display " .. target) or "-m window --display next"
-  if not commandSucceeded(YABAI .. " " .. arguments) then
+  if not commandSucceeded(DISPLAY_CYCLE_HELPER) then
     showAlert("Window display move failed")
   end
 end
@@ -1259,6 +1240,7 @@ end
 local function buildRegistry(mode)
   local arrows = arrowKeysFor(mode)
   local nextWindowKey = mode == "left" and "4" or "n"
+  local nextDisplayKey = mode == "left" and "4" or "n"
   local arrowWord = {
     [arrows.up] = "up", [arrows.left] = "left",
     [arrows.down] = "down", [arrows.right] = "right",
@@ -1356,7 +1338,7 @@ local function buildRegistry(mode)
       { key = "r", label = "Toggle float", action = function()
           runYabaiCommand("-m window --toggle float", "Window float toggle failed")
         end },
-      { key = "n", label = "Move window to next display (loops)", action = moveFocusedWindowToNextDisplay },
+      { key = nextDisplayKey, label = "Move window to next display (loops)", action = moveFocusedWindowToNextDisplay },
       { key = "z", label = "Next Space", action = function()
           runYabaiCommand("-m space --focus next", "Space command failed")
         end },
@@ -1504,7 +1486,7 @@ local function buildRegistry(mode)
   local snapEntries = {
     { key = "f", label = "Maximize", action = function() snapFocusedWindow(SNAP_UNITS.maximize) end },
     { key = "r", label = "Center", action = function() snapFocusedWindow(SNAP_UNITS.center) end },
-    { key = "n", label = "Move window to next display (loops)", action = moveFocusedWindowToNextDisplay },
+    { key = nextDisplayKey, label = "Move window to next display (loops)", action = moveFocusedWindowToNextDisplay },
     { key = "t", label = "Spaces…", action = function() enterLayerById("spaces") end },
     { key = "b", label = "Toggle window-follow", action = function()
         toggleWindowFollow()

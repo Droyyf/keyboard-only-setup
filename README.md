@@ -8,6 +8,10 @@ build, and Shortcat. Hammerspoon owns app toggles, snapping, navigation layers,
 a Hyper-held Action Hub and generated shortcut reference, and mode selection. skhd invokes yabai for focus, movement,
 resizing, native Spaces, and displays.
 
+Display movement uses one looping action: **4** inside LH window HUDs and
+**N** inside 2H window HUDs. The shared helper queries yabai's connected-display
+ring and wraps from the final display back to the first.
+
 Read [CHEATSHEET.md](CHEATSHEET.md) for the complete map and
 [METHODOLOGY.md](METHODOLOGY.md) for the ownership and recovery model.
 

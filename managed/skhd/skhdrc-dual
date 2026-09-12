@@ -62,5 +62,4 @@ alt - f : $HOME/.config/skhd/yabai-run.sh -m window --toggle zoom-fullscreen >/d
 alt - s : $HOME/.config/skhd/yabai-run.sh -m window --toggle float >/dev/null 2>&1
 
 # --- display: move focused window to the next display (loops back around) ---
-alt - right : $HOME/.config/skhd/yabai-run.sh -m window --display next >/dev/null 2>&1
-
+alt - right : $HOME/.config/skhd/cycle-window-display.sh >/dev/null 2>&1

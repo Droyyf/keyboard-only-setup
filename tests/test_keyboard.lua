@@ -508,12 +508,13 @@ run("windows layer routes arrows without Shift and toggles move/resize", functio
   releaseHyper(fake)
 end)
 
-run("N is the single looping next-display shortcut in every window layer", function()
+run("the mode-local key invokes the shared looping display helper in every window layer", function()
   for _, mode in ipairs({ "left", "dual" }) do
+    local displayKey = mode == "left" and "4" or "n"
     local fake = newFake(mode, true)
     enterLayerViaHub(fake, "s", "windows")
-    tapKey(fake, KEY.n, HYPER_FLAGS)
-    assertTrue(fake.commands[#fake.commands]:find("window %-%-display", 1, false),
+    tapKey(fake, KEY[displayKey], HYPER_FLAGS)
+    assertTrue(fake.commands[#fake.commands]:find("cycle%-window%-display%.sh", 1, false),
       mode .. " mode must move the focused window to the next display")
     releaseHyper(fake)
 
@@ -521,28 +522,11 @@ run("N is the single looping next-display shortcut in every window layer", funct
     binding(fake, HYPER, "x").pressed()
     assertEqual(fake.api.debugStatus().layer, mode == "left" and "snap" or "dual-snap",
       "Hyper+X must open the snap layer")
-    tapKey(fake, KEY.n, HYPER_FLAGS)
-    assertTrue(fake.commands[#fake.commands]:find("window %-%-display", 1, false),
+    tapKey(fake, KEY[displayKey], HYPER_FLAGS)
+    assertTrue(fake.commands[#fake.commands]:find("cycle%-window%-display%.sh", 1, false),
       "snap layer must carry the same looping display shortcut")
     releaseHyper(fake)
   end
-end)
-
-run("next-display follows the actual yabai display ring", function()
-  local fake = newFake("left", true)
-  local decoded = {
-    { { index = 1 }, { index = 3 } },
-    { display = 1 },
-  }
-  fake.hs.json.decode = function()
-    local result = table.remove(decoded, 1)
-    return result
-  end
-  enterLayerViaHub(fake, "s", "windows")
-  tapKey(fake, KEY.n, HYPER_FLAGS)
-  assertTrue(fake.commands[#fake.commands]:find("window %-%-display 3", 1, false),
-    "the next display must use the next queried display index, not arithmetic on the current index")
-  releaseHyper(fake)
 end)
 
 run("brightness and previous-display shortcuts are gone", function()

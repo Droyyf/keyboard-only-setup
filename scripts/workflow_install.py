@@ -19,11 +19,13 @@ MANAGED_FILES: Final[dict[str, str]] = {
     "managed/skhd/skhdrc-dual": ".config/skhd/skhdrc-dual",
     "managed/skhd/skhdrc-left": ".config/skhd/skhdrc-left",
     "managed/skhd/set-keyboard-mode.py": ".config/skhd/set-keyboard-mode.py",
+    "managed/skhd/cycle-window-display.sh": ".config/skhd/cycle-window-display.sh",
     "managed/skhd/win-dir.sh": ".config/skhd/win-dir.sh",
     "managed/skhd/yabai-run.sh": ".config/skhd/yabai-run.sh",
 }
 EXECUTABLE_DESTINATIONS: Final[set[str]] = {
     ".config/skhd/set-keyboard-mode.py",
+    ".config/skhd/cycle-window-display.sh",
     ".config/skhd/win-dir.sh",
     ".config/skhd/yabai-run.sh",
 }
