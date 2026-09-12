@@ -98,6 +98,36 @@ class InstallerTest(unittest.TestCase):
         self.assertIn("hs.alert.show('personal automation')", init.read_text())
         self.assertIn('require("keyboard")', init.read_text())
 
+    def test_install_migrates_only_the_known_legacy_window_follow_block(self):
+        workflow_install = importlib.import_module("scripts.workflow_install")
+        hammerspoon = self.home / ".hammerspoon"
+        hammerspoon.mkdir()
+        init = hammerspoon / "init.lua"
+        original = (
+            "hs.alert.show('before')\n"
+            + workflow_install.LEGACY_WINDOW_FOLLOW_BLOCK
+            + "require(\"keyboard\")\n"
+            + "hs.alert.show('after')\n"
+        )
+        init.write_text(original)
+
+        backup = workflow_install.install_managed_files(ROOT, self.home, self.backups)
+
+        migrated = init.read_text()
+        self.assertIn("hs.alert.show('before')", migrated)
+        self.assertIn("hs.alert.show('after')", migrated)
+        self.assertNotIn("AppWatcher = hs.application.watcher.new", migrated)
+        self.assertEqual(migrated.count('require("keyboard")'), 1)
+        self.assertEqual((backup / "files/.hammerspoon/init.lua").read_text(), original)
+
+    def test_legacy_migration_does_not_remove_a_nearby_unrecognized_block(self):
+        workflow_install = importlib.import_module("scripts.workflow_install")
+        altered = workflow_install.LEGACY_WINDOW_FOLLOW_BLOCK.replace(
+            'hs.alert.show(followEnabled and "Window-follow: ON" or "Window-follow: OFF")',
+            'hs.alert.show("custom follow")',
+        )
+        self.assertEqual(workflow_install._migrate_legacy_window_follow(altered), altered)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -180,6 +180,7 @@ local layerState = {}            -- per-layer toggles (move/resize/send/select)
 local referenceVisible = false
 local referencePage = 1
 local hintsVisible = false
+local hintWindowIDs = nil
 local gridState = nil            -- assigned by the mouse-grid section below
 local layerCanvas = nil
 local referenceCanvas = nil
@@ -197,6 +198,8 @@ local renderReference = nil      -- defined after the registry-backed layout hel
 local refreshLayer = nil         -- redraws keyboard selection inside an open layer
 local closeWindowHints = nil     -- defined with the window-hints action
 local openAppSwitcher = nil      -- defined after the generic layer opener
+local authorizeWindowFollow = nil -- defined by the intent-gated follow section
+local authorizeHintSelection = nil
 local HUD_CANVAS_LEVEL = (hs.canvas and hs.canvas.windowLevels
   and (hs.canvas.windowLevels.assistiveTechHigh or hs.canvas.windowLevels.screenSaver)) or 1500
 
@@ -277,6 +280,7 @@ local function routeHudKey(name)
     if name == "escape" then
       closeWindowHints()
     elseif #name == 1 and name:match("%a") then
+      if authorizeHintSelection then authorizeHintSelection() end
       local character = currentMode == "left" and name or name:upper()
       hs.hints.processChar(character)
     end
@@ -344,7 +348,12 @@ local function handleHudEvent(event)
   local name = KEY_NAMES[event:getKeyCode()]
   if not name then return false end
   if eventType == types.keyUp then return anyHudOpen() end
-  if hyperIsDown(event:getFlags()) then
+  local flags = event:getFlags()
+  if name == "tab" and flags.cmd and not flags.alt and not flags.ctrl and not flags.shift then
+    if authorizeWindowFollow then authorizeWindowFollow(nil, nil, 3) end
+    return false
+  end
+  if hyperIsDown(flags) then
     hyperDown = true
     if anyHudOpen() then
       resetHudTimeout()
@@ -603,6 +612,7 @@ openAppSwitcher = function(page)
     table.insert(def.keys, {
       key = key, label = app:name(), action = function()
         closeLayer()
+        if authorizeWindowFollow then authorizeWindowFollow(app, nil, 3) end
         pcall(function() app:activate() end)
       end,
     })
@@ -837,6 +847,7 @@ end
 local function focusOrLaunchApplication(applicationSpec)
   local application = hs.application.get(applicationSpec.bundleID) or hs.application.get(applicationSpec.name)
   if not application then
+    if authorizeWindowFollow then authorizeWindowFollow(nil, nil, 10, applicationSpec) end
     if not hs.application.launchOrFocusByBundleID(applicationSpec.bundleID) then
       hs.application.launchOrFocus(applicationSpec.name)
     end
@@ -861,6 +872,7 @@ local function focusOrLaunchApplication(applicationSpec)
     return
   end
 
+  if authorizeWindowFollow then authorizeWindowFollow(application, window, 3, applicationSpec) end
   application:unhide()
   application:activate(true)
   if not window then return end
@@ -944,6 +956,7 @@ end
 closeWindowHints = function()
   if not hintsVisible then return end
   hintsVisible = false
+  hintWindowIDs = nil
   pcall(function() hs.hints.closeHints() end)
   -- hs.hints owns a private modal. Escape exits that modal after this handler
   -- has stopped consuming keys, without sending Escape to the focused app.
@@ -972,6 +985,11 @@ local function showHints()
   if #windows == 0 then
     showAlert("No hintable windows on this display")
     return
+  end
+  hintWindowIDs = {}
+  for _, window in ipairs(windows) do
+    local ok, windowID = pcall(function() return window:id() end)
+    if windowID then hintWindowIDs[windowID] = true end
   end
   hintsVisible = true
   hyperDown = true
@@ -1005,15 +1023,83 @@ end
 local followEnabled = true
 local lastCloseTime = 0
 local CLOSE_GRACE_PERIOD = 0.5
+local FOLLOW_INTENT_TTL = 3
+local followIntent = nil
 local pullTimer = nil
 local closeWatcher = nil
 local appWatcher = nil
 
-local function pullWindowToCurrentScreen()
+local function appValue(application, method)
+  if not application or not application[method] then return nil end
+  local ok, value = pcall(function() return application[method](application) end)
+  return ok and value or nil
+end
+
+local function windowValue(window, method)
+  if not window or not window[method] then return nil end
+  local ok, value = pcall(function() return window[method](window) end)
+  return ok and value or nil
+end
+
+local function clearFollowIntentFor(application, appName)
+  if not followIntent then return end
+  local bundleID = appValue(application, "bundleID")
+  local pid = appValue(application, "pid")
+  local name = appValue(application, "name") or appName
+  if (followIntent.bundleID and followIntent.bundleID == bundleID)
+    or (followIntent.pid and followIntent.pid == pid)
+    or (followIntent.name and followIntent.name == name) then
+    followIntent = nil
+  end
+end
+
+-- A token is created only by an explicit workflow action. It expires quickly
+-- and can move one matching app/window at most once.
+authorizeWindowFollow = function(application, window, ttl, fallback)
+  local windowIDs = nil
+  if window and type(window) == "table" and window.windowIDs then
+    windowIDs = window.windowIDs
+    window = nil
+  end
+  followIntent = {
+    bundleID = appValue(application, "bundleID") or (fallback and fallback.bundleID),
+    pid = appValue(application, "pid"),
+    name = appValue(application, "name") or (fallback and fallback.name),
+    windowID = windowValue(window, "id"),
+    windowIDs = windowIDs,
+    expiresAt = hs.timer.secondsSinceEpoch() + (ttl or FOLLOW_INTENT_TTL),
+  }
+end
+
+local function followIntentMatches(application, window, ignoreWindow)
+  if not followIntent then return false end
+  if hs.timer.secondsSinceEpoch() > followIntent.expiresAt then
+    followIntent = nil
+    return false
+  end
+  local bundleID = appValue(application, "bundleID")
+  local pid = appValue(application, "pid")
+  local name = appValue(application, "name")
+  local windowID = windowValue(window, "id")
+  if followIntent.bundleID and followIntent.bundleID ~= bundleID then return false end
+  if followIntent.pid and followIntent.pid ~= pid then return false end
+  if followIntent.name and followIntent.name ~= name then return false end
+  if not ignoreWindow then
+    if followIntent.windowID and followIntent.windowID ~= windowID then return false end
+    if followIntent.windowIDs and not followIntent.windowIDs[windowID] then return false end
+  end
+  return true
+end
+
+authorizeHintSelection = function()
+  if not hintWindowIDs then return end
+  authorizeWindowFollow(nil, { windowIDs = hintWindowIDs }, FOLLOW_INTENT_TTL)
+end
+
+local function pullWindowToCurrentScreen(application, win)
   if hs.timer.secondsSinceEpoch() - lastCloseTime < CLOSE_GRACE_PERIOD then return end
-  local app = hs.application.frontmostApplication()
-  if not app then return end
-  local win = app:focusedWindow() or app:mainWindow()
+  if not application then return end
+  win = win or application:focusedWindow() or application:mainWindow()
   if not win or not win:isStandard() or win:isFullScreen() then return end
   local currentScreen = hs.mouse.getCurrentScreen()
   if currentScreen and win:screen() ~= currentScreen then
@@ -1023,6 +1109,7 @@ end
 
 local function toggleWindowFollow()
   followEnabled = not followEnabled
+  if not followEnabled then followIntent = nil end
   showAlert(followEnabled and "Window-follow: ON" or "Window-follow: OFF")
 end
 
@@ -1034,23 +1121,41 @@ local function startWindowFollow()
   closeWatcher:subscribe(hs.window.filter.windowDestroyed, function()
     lastCloseTime = hs.timer.secondsSinceEpoch()
   end)
-  appWatcher = hs.application.watcher.new(function(_, eventType)
-    if not followEnabled then return end
+  appWatcher = hs.application.watcher.new(function(appName, eventType, watchedApplication)
     if eventType == hs.application.watcher.terminated then
       lastCloseTime = hs.timer.secondsSinceEpoch()
+      clearFollowIntentFor(watchedApplication, appName)
       return
     end
-    if eventType == hs.application.watcher.activated then
+    if eventType == hs.application.watcher.activated and followEnabled then
+      local application = watchedApplication or hs.application.frontmostApplication()
+      local window = application and (application:focusedWindow() or application:mainWindow()) or nil
+      if not followIntentMatches(application, window, true) then return end
       if pullTimer then
         pullTimer:stop()
         pullTimer = nil
       end
       pullTimer = hs.timer.doAfter(0.15, function()
-        pcall(pullWindowToCurrentScreen)
+        local currentApplication = hs.application.frontmostApplication() or application
+        local currentWindow = currentApplication and (currentApplication:focusedWindow() or currentApplication:mainWindow()) or nil
+        if followIntentMatches(currentApplication, currentWindow) then
+          followIntent = nil
+          pcall(pullWindowToCurrentScreen, currentApplication, currentWindow)
+        end
       end)
     end
   end)
   appWatcher:start()
+end
+
+-- Older releases placed an unconditional watcher in init.lua. Stop those
+-- globals during an upgrade so they cannot race this intent-gated watcher.
+local function stopLegacyWindowFollow()
+  for _, name in ipairs({ "AppWatcher", "CloseWatcher" }) do
+    local watcher = name == "AppWatcher" and AppWatcher or CloseWatcher
+    if watcher and watcher.stop then pcall(function() watcher:stop() end) end
+    if name == "AppWatcher" then AppWatcher = nil else CloseWatcher = nil end
+  end
 end
 
 -- ---------------------------------------------------------------------------
@@ -1450,7 +1555,6 @@ local function buildRegistry(mode)
       { key = "w", label = "kitty at Finder folder / focus kitty", action = terminalAtFinderFolder },
       { key = "b", label = "Toggle window-follow", action = function()
           toggleWindowFollow()
-          hs.eventtap.keyStroke(hyper, "end", 0)
         end },
       { key = "tab", label = "Switch LH / 2H mode", action = toggleMode },
       { key = "r", label = "Reload configuration", action = reloadConfigs },
@@ -1491,7 +1595,6 @@ local function buildRegistry(mode)
     { key = "t", label = "Spaces…", action = function() enterLayerById("spaces") end },
     { key = "b", label = "Toggle window-follow", action = function()
         toggleWindowFollow()
-        hs.eventtap.keyStroke(hyper, "end", 0)
       end },
     { key = "v", label = "Hide app", action = strokeKey({ "cmd" }, "h") },
     { key = "g", label = "Minimize window", action = strokeKey({ "cmd" }, "m") },
@@ -1684,6 +1787,7 @@ if hs.distributednotifications and hs.distributednotifications.new then
 end
 
 configureMenubar()
+stopLegacyWindowFollow()
 startWindowFollow()
 
 -- HUD layer keys per hand mode, mirrored statically for tools/audit_shortcuts.py.

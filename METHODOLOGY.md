@@ -58,7 +58,8 @@ To restore the old setup, restore the backed-up Hammerspoon files and original s
 
 ## Behavioral boundaries
 
-- Hammerspoon owns every global snap chord and window-follow. If `~/.hammerspoon/init.lua` still contains an older follow watcher or Hyper+End binding, remove that block so only `keyboard.lua` owns the behavior.
+- Hammerspoon owns every global snap chord and window-follow. The installer removes the exact legacy unconditional `AppWatcher`/`CloseWatcher` and Hyper+End block from `~/.hammerspoon/init.lua`, preserving unrelated automation; `keyboard.lua` also stops those legacy globals defensively during an upgrade.
+- Window-follow is intent-gated: it pulls only once after an app toggle, a running-app switcher selection, macOS **Command+Tab**, or a selected **Hyper+E** hint. Ordinary activation from the Dock, a file, a notification, or another app never authorizes a pull.
 - Raycast Window Management remains enabled for searchable commands, with its global hotkey fields unassigned.
 - Snapping is intended for floating windows. yabai BSP may retile snapped windows; ⌥T changes the layout deliberately.
 - Space numbers reference existing macOS Spaces; no extra Spaces are created by these bindings.

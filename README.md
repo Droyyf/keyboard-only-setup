@@ -40,6 +40,15 @@ The workflow also promotes a HUD action to a direct Hyper shortcut whenever
 its key has exactly one meaning in the active mode and no existing direct owner.
 Reused keys stay inside their HUD so one chord never performs two actions.
 
+## Window-follow behavior
+
+When window-follow is enabled, it moves a window to the display containing the
+pointer only after you deliberately select that window through one of these
+workflow actions: an app toggle, the running-app switcher, macOS **Command+Tab**,
+or a selected **Hyper+E** window hint. Each selection authorizes one move only.
+Dock clicks, file opens, notifications, and ordinary app activation never move
+windows.
+
 ## Install
 
 Clone the repository, then run:
@@ -83,6 +92,10 @@ workflow while retaining the rest of the file:
 ```lua
 require("keyboard")
 ```
+
+During an upgrade, the installer also removes the exact legacy unconditional
+window-follow watcher block from `init.lua` and backs up the original file.
+It leaves all other personal Hammerspoon automation in place.
 
 ## Required manual macOS settings
 

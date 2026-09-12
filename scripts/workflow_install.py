@@ -32,6 +32,81 @@ EXECUTABLE_DESTINATIONS: Final[set[str]] = {
 VALID_MODES: Final[set[str]] = {"dual", "left"}
 YABAI_REPOSITORY: Final[str] = "https://github.com/Droyyf/yabai-macos27.git"
 YABAI_COMMIT: Final[str] = "a42af64b9ba0e6e01d9745c11d486311e04ec0ab"
+LEGACY_WINDOW_FOLLOW_BLOCK: Final[str] = '''local excludedApps = {
+    -- ["Slack"] = true,
+}
+
+local followEnabled = true
+local lastCloseTime = 0
+local CLOSE_GRACE_PERIOD = 0.5
+local pullTimer = nil
+
+-- Globals required to prevent Lua Garbage Collection
+AppWatcher = nil
+CloseWatcher = nil
+
+CloseWatcher = hs.window.filter.new()
+CloseWatcher:subscribe(hs.window.filter.windowDestroyed, function()
+    lastCloseTime = hs.timer.secondsSinceEpoch()
+end)
+
+local function pullWindowToCurrentScreen()
+    if hs.timer.secondsSinceEpoch() - lastCloseTime < CLOSE_GRACE_PERIOD then return end
+
+    local app = hs.application.frontmostApplication()
+    if not app then return end
+
+    local appName = app:title()
+    if excludedApps[appName] then return end
+
+    local win = app:focusedWindow() or app:mainWindow()
+    if not win then return end
+    if not win:isStandard() then return end
+    if win:isFullScreen() then return end
+
+    local currentScreen = hs.mouse.getCurrentScreen()
+    if currentScreen and win:screen() ~= currentScreen then
+        -- Temporarily unsubscribe to prevent moveToScreen from triggering windowDestroyed
+        CloseWatcher:unsubscribe(hs.window.filter.windowDestroyed)
+        win:moveToScreen(currentScreen)
+        hs.timer.doAfter(0.1, function()
+            CloseWatcher:subscribe(hs.window.filter.windowDestroyed, function()
+                lastCloseTime = hs.timer.secondsSinceEpoch()
+            end)
+        end)
+    end
+end
+
+AppWatcher = hs.application.watcher.new(function(appName, eventType, appObject)
+    if not followEnabled then return end
+
+    if eventType == hs.application.watcher.terminated then
+        lastCloseTime = hs.timer.secondsSinceEpoch()
+        return
+    end
+
+    if eventType == hs.application.watcher.activated then
+        if pullTimer then
+            pullTimer:stop()
+            pullTimer = nil
+        end
+
+        pullTimer = hs.timer.doAfter(0.15, function()
+            local ok, err = pcall(pullWindowToCurrentScreen)
+
+            if not ok then print("window-follow error: " .. tostring(err)) end
+        end)
+    end
+end)
+AppWatcher:start()
+
+local hyper = {"cmd", "alt", "ctrl", "shift"}
+hs.hotkey.bind(hyper, "end", function()
+    followEnabled = not followEnabled
+    hs.alert.show(followEnabled and "Window-follow: ON" or "Window-follow: OFF")
+end)
+
+'''
 
 
 def _backup_directory(backup_root: Path) -> Path:
@@ -54,6 +129,11 @@ def _atomic_write_text(destination: Path, content: str) -> None:
     temporary = destination.with_name(destination.name + ".keyboard-only-setup.tmp")
     temporary.write_text(content)
     os.replace(temporary, destination)
+
+
+def _migrate_legacy_window_follow(init_text: str) -> str:
+    """Remove only the unconditional watcher block from the prior workflow."""
+    return init_text.replace(LEGACY_WINDOW_FOLLOW_BLOCK, "", 1)
 
 
 def install_managed_files(repo_root: Path, target_home: Path, backup_root: Path) -> Path:
@@ -81,7 +161,11 @@ def install_managed_files(repo_root: Path, target_home: Path, backup_root: Path)
     init_relative = ".hammerspoon/init.lua"
     init_file = target_home / init_relative
     init_text = init_file.read_text() if init_file.exists() else ""
-    if 'require("keyboard")' not in init_text and "require('keyboard')" not in init_text:
+    updated_init_text = _migrate_legacy_window_follow(init_text)
+    if 'require("keyboard")' not in updated_init_text and "require('keyboard')" not in updated_init_text:
+        suffix = "" if not updated_init_text or updated_init_text.endswith("\n") else "\n"
+        updated_init_text += suffix + 'require("keyboard")\n'
+    if updated_init_text != init_text:
         if init_file.exists():
             backup_file = backup / "files" / init_relative
             backup_file.parent.mkdir(parents=True, exist_ok=True)
@@ -89,8 +173,7 @@ def install_managed_files(repo_root: Path, target_home: Path, backup_root: Path)
             manifest[init_relative] = {"state": "present"}
         else:
             manifest[init_relative] = {"state": "absent"}
-        suffix = "" if not init_text or init_text.endswith("\n") else "\n"
-        _atomic_write_text(init_file, init_text + suffix + 'require("keyboard")\n')
+        _atomic_write_text(init_file, updated_init_text)
 
     (backup / "manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
     return backup

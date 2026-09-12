@@ -44,6 +44,13 @@ Keep holding Hyper while a HUD is visible. Press `/`, `X`, `3`, or backtick to s
 | Both | Hyper + Y | Shift + Tab; automatically promoted because Y is unique |
 | LH | Hyper + N | New browser tab; automatically promoted because N is unique in LH |
 
+## Window-follow
+
+Toggle window-follow from **Snap & System → B**. While enabled, it follows only
+one explicit selection: an app toggle, a running-app switcher selection, macOS
+**Command+Tab**, or a selected **Hyper+E** window hint. Dock clicks, file opens,
+notifications, and normal app activation do not move a window.
+
 ## Direct 2H snapping
 
 | Shortcut | Action |

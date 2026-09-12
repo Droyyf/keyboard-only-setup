@@ -57,7 +57,7 @@ local function run(name, fn)
   end
 end
 
-local function newFake(mode, helperSucceeds)
+local function newFake(mode, helperSucceeds, legacyWatchers)
   local fake = {
     alerts = {}, bindings = {}, canvases = {}, commands = {}, keyStrokes = {},
     launches = {}, bundleLaunches = {}, clicks = {}, scrolls = 0, reloads = 0,
@@ -194,7 +194,7 @@ local function newFake(mode, helperSucceeds)
     return timer()
   end
   function hs.timer.usleep() end
-  function hs.timer.secondsSinceEpoch() return 1 end
+  function hs.timer.secondsSinceEpoch() return fake.now or 1 end
   function hs.audiodevice.defaultOutputDevice()
     return {
       volume = function() return fake.volume end,
@@ -237,7 +237,10 @@ local function newFake(mode, helperSucceeds)
     windowDestroyed = "windowDestroyed",
   }
   hs.application.watcher = {
-    new = function() return { start = function() end } end,
+    new = function(callback)
+      fake.appWatcherCallback = callback
+      return { start = function() end }
+    end,
     terminated = "terminated",
     activated = "activated",
   }
@@ -256,6 +259,10 @@ local function newFake(mode, helperSucceeds)
   end
 
   local env = setmetatable({ hs = hs, io = fakeIo }, { __index = _G })
+  if legacyWatchers then
+    env.AppWatcher = legacyWatchers.app
+    env.CloseWatcher = legacyWatchers.close
+  end
   local chunk, loadError
   if _VERSION == "Lua 5.1" then
     chunk, loadError = loadfile(KEYBOARD)
@@ -322,6 +329,42 @@ local function releaseHyper(fake)
   tapFlags(fake, {})
 end
 
+local function followWindow(fake, id, application, screen)
+  return {
+    id = function() return id end,
+    application = function() return application end,
+    isStandard = function() return true end,
+    isMinimized = function() return false end,
+    isFullScreen = function() return false end,
+    raise = function() end,
+    focus = function() end,
+    screen = function() return screen or fake.screen end,
+    moveToScreen = function(_, target)
+      fake.followMoves = (fake.followMoves or 0) + 1
+      fake.followTarget = target
+    end,
+  }
+end
+
+local function followApplication(fake, name, bundleID, pid, window)
+  local application = {
+    name = function() return name end,
+    bundleID = function() return bundleID end,
+    pid = function() return pid end,
+    focusedWindow = function() return window end,
+    mainWindow = function() return window end,
+    allWindows = function() return { window } end,
+    unhide = function() end,
+    activate = function() end,
+  }
+  return application
+end
+
+local function activateForFollow(fake, application)
+  fake.frontmostApplication = application
+  fake.appWatcherCallback(application:name(), fake.hs.application.watcher.activated, application)
+end
+
 local function openHub(fake)
   tapKey(fake, KEY["/"], HYPER_FLAGS)
   assertEqual(fake.api.debugStatus().layer, "workflow", "Hyper+/ must open the Action Hub")
@@ -342,6 +385,17 @@ run("module loads for both hand modes and reports the mode", function()
     assertEqual(fake.api.getMode(), mode, mode .. " mode must be read from the mode file")
     assertTrue(fake.api._menubar ~= nil, mode .. " mode must retain its menu bar indicator")
   end
+end)
+
+run("module stops legacy global window-follow watchers during an upgrade", function()
+  local stopped = { app = 0, close = 0 }
+  local fake = newFake("left", true, {
+    app = { stop = function() stopped.app = stopped.app + 1 end },
+    close = { stop = function() stopped.close = stopped.close + 1 end },
+  })
+  assertEqual(stopped.app, 1, "the old application watcher must be stopped")
+  assertEqual(stopped.close, 1, "the old close watcher must be stopped")
+  assertTrue(fake.api._appWatcher ~= nil, "the managed watcher must replace the stopped legacy watcher")
 end)
 
 run("unambiguous registry keys are promoted to direct shortcuts automatically", function()
@@ -765,6 +819,92 @@ run("app shortcut launches ChatGPT by the installed Codex bundle identifier", fu
   local fake = newFake("left", true)
   binding(fake, HYPER, "c").pressed()
   assertEqual(fake.bundleLaunches[1], "com.openai.codex", "ChatGPT must not rely on a display name")
+end)
+
+run("window-follow ignores ordinary application activation", function()
+  local fake = newFake("left", true)
+  local window = followWindow(fake, 701, nil, fake.screen)
+  local app = followApplication(fake, "Ordinary", "com.example.ordinary", 701, window)
+  activateForFollow(fake, app)
+  assertEqual(fake.followMoves or 0, 0,
+    "Dock clicks, file opens, and unrelated activation must not pull a window")
+end)
+
+run("window-follow consumes one matching app-toggle activation", function()
+  local fake = newFake("left", true)
+  local window = followWindow(fake, 702, nil, fake.otherScreen)
+  local app = followApplication(fake, "Arc", "company.thebrowser.Browser", 702, window)
+  fake.runningApplicationsByName["company.thebrowser.Browser"] = app
+  fake.runningApplicationsByName.Arc = app
+  binding(fake, HYPER, "a").pressed()
+  activateForFollow(fake, app)
+  assertEqual(fake.followMoves, 1, "an app toggle must pull its selected window once")
+  activateForFollow(fake, app)
+  assertEqual(fake.followMoves, 1, "the app-toggle authorization must be single-use")
+end)
+
+run("window-follow keeps a launch authorization long enough for an app to open", function()
+  local fake = newFake("left", true)
+  local window = followWindow(fake, 708, nil, fake.otherScreen)
+  local app = followApplication(fake, "ChatGPT", "com.openai.codex", 708, window)
+  binding(fake, HYPER, "c").pressed()
+  fake.now = 8
+  activateForFollow(fake, app)
+  assertEqual(fake.followMoves, 1, "a launched app must retain follow authorization while it starts")
+end)
+
+run("window-follow accepts switcher, Cmd+Tab, and window-hint intent only", function()
+  local function makeTarget(fake, name, bundleID, id)
+    local window = followWindow(fake, id, nil, fake.otherScreen)
+    local app = followApplication(fake, name, bundleID, id, window)
+    app.kind = function() return 0 end
+    return app, window
+  end
+
+  local fake = newFake("left", true)
+  local switched = makeTarget(fake, "Switcher", "com.example.switcher", 703)
+  fake.hs.application.runningApplications = function() return { switched } end
+  binding(fake, HYPER, "r").pressed()
+  tapKey(fake, KEY.a, HYPER_FLAGS)
+  activateForFollow(fake, switched)
+  assertEqual(fake.followMoves, 1, "a running-app switcher selection must authorize follow")
+
+  fake = newFake("left", true)
+  local commandTabbed = makeTarget(fake, "CommandTab", "com.example.commandtab", 704)
+  tapKey(fake, KEY.tab, { cmd = true })
+  activateForFollow(fake, commandTabbed)
+  assertEqual(fake.followMoves, 1, "Cmd+Tab must authorize the selected app activation")
+
+  fake = newFake("left", true)
+  local hinted, hintedWindow = makeTarget(fake, "Hinted", "com.example.hinted", 705)
+  hintedWindow.screen = function() return fake.screen end
+  fake.windows = { hintedWindow }
+  binding(fake, HYPER, "e").pressed()
+  hintedWindow.screen = function() return fake.otherScreen end
+  tapKey(fake, KEY.a, HYPER_FLAGS)
+  activateForFollow(fake, hinted)
+  assertEqual(fake.followMoves, 1, "a Hyper+E hint selection must authorize its hinted window")
+end)
+
+run("window-follow intents expire and clear when their app terminates", function()
+  local fake = newFake("left", true)
+  local window = followWindow(fake, 706, nil, fake.otherScreen)
+  local app = followApplication(fake, "Expiring", "com.example.expiring", 706, window)
+  tapKey(fake, KEY.tab, { cmd = true })
+  fake.now = 10
+  activateForFollow(fake, app)
+  assertEqual(fake.followMoves or 0, 0, "expired Cmd+Tab authorization must not pull")
+
+  fake = newFake("left", true)
+  window = followWindow(fake, 707, nil, fake.otherScreen)
+  app = followApplication(fake, "Terminating", "com.example.terminating", 707, window)
+  fake.runningApplicationsByName["company.thebrowser.Browser"] = app
+  fake.runningApplicationsByName.Arc = app
+  binding(fake, HYPER, "a").pressed()
+  fake.now = 10
+  fake.appWatcherCallback(app:name(), fake.hs.application.watcher.terminated, app)
+  activateForFollow(fake, app)
+  assertEqual(fake.followMoves or 0, 0, "termination must cancel that app's pending authorization")
 end)
 
 run("focused app shortcut minimizes its window in both modes", function()
