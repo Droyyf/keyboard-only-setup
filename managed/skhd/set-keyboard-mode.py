@@ -28,10 +28,14 @@ def atomic_write(path, data):
 
 def validate_profile(data):
     """This setup deliberately uses only simple modifier/key command bindings."""
+    text = data.decode('utf-8')
+    intentionally_empty = any(
+        line.strip() == '# direct-bindings: none' for line in text.splitlines()
+    )
     seen = set()
     allowed_modifiers = {'alt', 'shift', 'ctrl', 'cmd', 'fn'}
     allowed_keys = set('abcdefghijklmnopqrstuvwxyz0123456789') | {'tab', 'left', 'right', 'up', 'down'}
-    for number, line in enumerate(data.decode('utf-8').splitlines(), 1):
+    for number, line in enumerate(text.splitlines(), 1):
         line = line.strip()
         if not line or line.startswith('#'):
             continue
@@ -49,7 +53,7 @@ def validate_profile(data):
         check = subprocess.run(['/bin/bash', '-n'], input=command, text=True, capture_output=True)
         if check.returncode:
             raise ValueError(f'Invalid command syntax on line {number}')
-    if not seen:
+    if not seen and not intentionally_empty:
         raise ValueError('Empty shortcut profile')
 
 

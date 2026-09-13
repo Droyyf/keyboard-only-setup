@@ -206,7 +206,6 @@ local hudMetrics = {
 local hudTimer = nil
 local directHotkeys = {}         -- Carbon fallback bindings; callbacks are guarded while a HUD is open
 local directActions = {}         -- eventtap-owned first-key dispatch by key name
-local automaticDirectKeys = {}   -- registry actions promoted because their key has one meaning
 local hudSwitchActions = {}      -- top-level HUD identifiers available inside every open HUD
 local hyperDown = false
 local snapTarget = nil
@@ -1768,87 +1767,24 @@ local function bindDirect(key, action, label, group)
   addDirectReference(key, label, group)
 end
 
-local function bindScroll(modifiers, key, x, y)
-  local function action() scrollBy(x, y) end
-  hs.hotkey.bind(modifiers, key, action, nil, action)
-  local direction = y > 0 and "up" or (y < 0 and "down" or (x < 0 and "left" or "right"))
-  addDirectReference("⌃⌥" .. keyDisplay(key), "Scroll " .. direction, "Scrolling")
-end
-
 bindDirect("a", function() focusOrLaunchApplication(APP_SPECS.a) end, "Arc", "Apps")
 bindDirect("c", function() focusOrLaunchApplication(APP_SPECS.c) end, "ChatGPT", "Apps")
 bindDirect("f", function() focusOrLaunchApplication(APP_SPECS.f) end, "Finder", "Apps")
 bindDirect("t", function() focusOrLaunchApplication(APP_SPECS.t) end, "kitty", "Apps")
-bindDirect("space", function() hs.execute("open 'raycast://'") end, "Raycast", "Launch & switch")
-bindDirect("r", openAppSwitcher, "Running-app switcher", "Launch & switch")
-bindDirect("v", function() hs.execute("open 'raycast://extensions/raycast/clipboard-history'") end, "Clipboard history", "Launch & switch")
-bindDirect("e", showHints, "Window hints (this display)", "Launch & switch")
-bindDirect("g", toggleGrid, "Mouse grid — move & click with the keyboard", "Launch & switch")
-bindDirect("5", function() hs.execute("open 'raycast://extensions/raycast/menu-bar/search-menu-bar'") end, "Menu-bar search", "Launch & switch")
-bindDirect(currentMode == "left" and "4" or "n", cycleCurrentAppWindow, "Next window of current app", "Launch & switch")
-bindDirect(currentMode == "left" and "q" or "up", function() changeVolume(5) end, "Volume up", "System")
-bindDirect(currentMode == "left" and "z" or "down", function() changeVolume(-5) end, "Volume down", "System")
-bindDirect("m", toggleMute, "Mute", "System")
-bindDirect("b", toggleDarkMode, "Dark mode", "System")
-bindDirect("s", saveLayout, "Save window layout", "Layouts & config")
-bindDirect("d", loadLayout, "Restore window layout", "Layouts & config")
-bindDirect("w", terminalAtFinderFolder, "kitty at Finder folder", "Layouts & config")
-bindDirect("tab", toggleMode, "Switch LH / 2H", "Layouts & config")
-bindDirect("escape", reloadConfigs, "Reload configuration", "Layouts & config")
 bindDirect("x", openSnapLayer, "Snap & system layer", "Layers")
 bindDirect("3", openNavigationLayer, "Navigation layer", "Layers")
 bindDirect("/", openWorkflowHub, "Action Hub", "Layers")
 bindDirect("`", toggleReference, "Complete shortcut reference", "Layers")
 
 if currentMode == "left" then
-  bindScroll({ "ctrl", "alt" }, "w", 0, 4)
-  bindScroll({ "ctrl", "alt" }, "s", 0, -4)
-  bindScroll({ "ctrl", "alt" }, "a", -4, 0)
-  bindScroll({ "ctrl", "alt" }, "d", 4, 0)
+  bindDirect("q", function() snapFocusedWindow(SNAP_UNITS.left) end, "Left half", "Direct window placement")
+  bindDirect("w", function() snapFocusedWindow(SNAP_UNITS.maximize) end, "Maximize", "Direct window placement")
+  bindDirect("e", function() snapFocusedWindow(SNAP_UNITS.right) end, "Right half", "Direct window placement")
 else
-  bindScroll({ "ctrl", "alt" }, "up", 0, 4)
-  bindScroll({ "ctrl", "alt" }, "down", 0, -4)
-  bindScroll({ "ctrl", "alt" }, "left", -4, 0)
-  bindScroll({ "ctrl", "alt" }, "right", 4, 0)
-  local dualSnapUnits = {
-    h = SNAP_UNITS.left, j = SNAP_UNITS.bottom, k = SNAP_UNITS.top, l = SNAP_UNITS.right,
-    u = SNAP_UNITS.topLeft, i = SNAP_UNITS.topRight,
-    o = SNAP_UNITS.bottomLeft, p = SNAP_UNITS.bottomRight,
-    [";"] = SNAP_UNITS.maximize, ["'"] = SNAP_UNITS.center,
-  }
-  local unitLabels = {
-    h = "Left half", j = "Bottom half", k = "Top half", l = "Right half",
-    u = "Top-left quarter", i = "Top-right quarter",
-    o = "Bottom-left quarter", p = "Bottom-right quarter",
-    [";"] = "Maximize", ["'"] = "Center",
-  }
-  for key, unit in pairs(dualSnapUnits) do
-    bindDirect(key, function() snapFocusedWindow(unit) end, unitLabels[key], "Direct snapping")
-  end
+  bindDirect("h", function() snapFocusedWindow(SNAP_UNITS.left) end, "Left half", "Direct window placement")
+  bindDirect(";", function() snapFocusedWindow(SNAP_UNITS.maximize) end, "Maximize", "Direct window placement")
+  bindDirect("l", function() snapFocusedWindow(SNAP_UNITS.right) end, "Right half", "Direct window placement")
 end
-
--- Promote a layer action to a direct Hyper shortcut only when its key occurs
--- once across the active registry and no explicit direct action already owns
--- that key. The registry remains the source of truth as shortcuts evolve.
-local function bindUnambiguousLayerActions()
-  local counts = {}
-  for _, layer in ipairs(REGISTRY.layers) do
-    for _, item in ipairs(layer.keys) do
-      counts[item.key] = (counts[item.key] or 0) + 1
-    end
-  end
-  for _, layer in ipairs(REGISTRY.layers) do
-    for _, item in ipairs(layer.keys) do
-      if counts[item.key] == 1 and not directActions[item.key] and not hudSwitchActions[item.key] then
-        bindDirect(item.key, item.action, item.label, "Automatic direct shortcuts")
-        table.insert(automaticDirectKeys, item.key)
-      end
-    end
-  end
-  table.sort(automaticDirectKeys)
-end
-
-bindUnambiguousLayerActions()
 
 local function configureMenubar()
   menubar = hs.menubar.new(true)
@@ -1904,7 +1840,7 @@ configureMenubar()
 stopLegacyWindowFollow()
 startWindowFollow()
 
--- HUD layer keys per hand mode, mirrored statically for tools/audit_shortcuts.py.
+-- HUD layer keys per hand mode, documented for registry/debug inspection.
 -- HUDKEYS left: a c f t r space v 5 4 e g q w d s m z b tab escape x 3 / ` 1 2 n y u i o p h j k l ;
 -- HUDKEYS dual: a c f t r space v 5 n e g q w d s m z b tab escape x 3 / ` 1 2 y 4 h j k l u i o p ; '
 
@@ -1919,6 +1855,9 @@ return {
   toggleWindowFollow = toggleWindowFollow,
   debugStatus = function()
     local context = activeLayer and layerDisplayContext or (referenceVisible and referenceDisplayContext)
+    local directKeys = {}
+    for key in pairs(directActions) do table.insert(directKeys, key) end
+    table.sort(directKeys)
     return {
       mode = currentMode,
       layer = activeLayer and activeLayer.id or nil,
@@ -1927,7 +1866,7 @@ return {
       grid = gridState ~= nil,
       follow = followEnabled,
       hyper = hyperDown,
-      automaticDirectKeys = automaticDirectKeys,
+      directKeys = directKeys,
       hud = {
         layer = activeLayer and activeLayer.id or nil,
         referencePage = referenceVisible and referencePage or nil,

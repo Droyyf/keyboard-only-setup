@@ -1,56 +1,6 @@
-# ============================================================
-# LEFT-HAND MODE — all shortcuts reachable with left hand only
-# Navigation uses WASD (gaming standard)
-# ============================================================
-
-# --- focus windows (WASD) ---
-alt - w : $HOME/.config/skhd/win-dir.sh focus north
-alt - a : $HOME/.config/skhd/win-dir.sh focus west
-alt - s : $HOME/.config/skhd/win-dir.sh focus south
-alt - d : $HOME/.config/skhd/win-dir.sh focus east
-
-# --- cycle windows ---
-alt - q : $HOME/.config/skhd/yabai-run.sh -m window --focus next >/dev/null 2>&1
-
-# --- move window (float) / swap window (bsp) — WASD + shift ---
-alt+shift - w : $HOME/.config/skhd/win-dir.sh move north
-alt+shift - a : $HOME/.config/skhd/win-dir.sh move west
-alt+shift - s : $HOME/.config/skhd/win-dir.sh move south
-alt+shift - d : $HOME/.config/skhd/win-dir.sh move east
-
-# --- resize window — WASD + fn ---
-fn - w : $HOME/.config/skhd/win-dir.sh resize north
-fn - a : $HOME/.config/skhd/win-dir.sh resize west
-fn - s : $HOME/.config/skhd/win-dir.sh resize south
-fn - d : $HOME/.config/skhd/win-dir.sh resize east
-
-# --- switch spaces (1-5, left hand) ---
-alt - 1 : $HOME/.config/skhd/yabai-run.sh -m space --focus 1 >/dev/null 2>&1
-alt - 2 : $HOME/.config/skhd/yabai-run.sh -m space --focus 2 >/dev/null 2>&1
-alt - 3 : $HOME/.config/skhd/yabai-run.sh -m space --focus 3 >/dev/null 2>&1
-alt - 4 : $HOME/.config/skhd/yabai-run.sh -m space --focus 4 >/dev/null 2>&1
-alt - 5 : $HOME/.config/skhd/yabai-run.sh -m space --focus 5 >/dev/null 2>&1
-
-# --- send window to space (and follow it) ---
-alt+shift - 1 : $HOME/.config/skhd/yabai-run.sh -m window --space 1 >/dev/null 2>&1 && $HOME/.config/skhd/yabai-run.sh -m space --focus 1 >/dev/null 2>&1
-alt+shift - 2 : $HOME/.config/skhd/yabai-run.sh -m window --space 2 >/dev/null 2>&1 && $HOME/.config/skhd/yabai-run.sh -m space --focus 2 >/dev/null 2>&1
-alt+shift - 3 : $HOME/.config/skhd/yabai-run.sh -m window --space 3 >/dev/null 2>&1 && $HOME/.config/skhd/yabai-run.sh -m space --focus 3 >/dev/null 2>&1
-alt+shift - 4 : $HOME/.config/skhd/yabai-run.sh -m window --space 4 >/dev/null 2>&1 && $HOME/.config/skhd/yabai-run.sh -m space --focus 4 >/dev/null 2>&1
-alt+shift - 5 : $HOME/.config/skhd/yabai-run.sh -m window --space 5 >/dev/null 2>&1 && $HOME/.config/skhd/yabai-run.sh -m space --focus 5 >/dev/null 2>&1
-
-# --- cycle spaces ---
-alt - z : $HOME/.config/skhd/yabai-run.sh -m space --focus next >/dev/null 2>&1
-alt - x : $HOME/.config/skhd/yabai-run.sh -m space --focus prev >/dev/null 2>&1
-
-# --- window toggles ---
-alt - e : $HOME/.config/skhd/yabai-run.sh -m window --toggle zoom-fullscreen >/dev/null 2>&1
-alt - r : $HOME/.config/skhd/yabai-run.sh -m window --toggle float >/dev/null 2>&1
-
-# --- move space to other display ---
-alt - f : $HOME/.config/skhd/yabai-run.sh --script move-space-to-other-display.sh
-
-# --- move focused window to next display (loops back to the first) ---
-alt - g : $HOME/.config/skhd/cycle-window-display.sh >/dev/null 2>&1
-
-# --- toggle layout (float ↔ bsp) ---
-alt - t : $HOME/.config/skhd/yabai-run.sh --script toggle-yabai-layout.sh
+# LEFT-HAND MODE
+# direct-bindings: none
+#
+# Direct execution is intentionally owned by Hammerspoon and limited to app
+# toggles plus left-half, maximize, and right-half window placement. All other
+# yabai operations are reached through the registry-generated HUD.

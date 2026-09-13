@@ -25,8 +25,6 @@ def hammerspoon_hyper_bindings(path: Path) -> list[dict[str, str]]:
     source = path.read_text()
     keys = set(re.findall(r'hs\.hotkey\.bind\(hyper,\s*"([^"]+)"', source))
     keys |= set(re.findall(r'bindDirect\("([^"]+)"', source))
-    for listed in re.findall(r"-- HUDKEYS \w+: (.+)", source):
-        keys |= {token for token in listed.split()}
     return [
         {"owner": "Hammerspoon", "action": f"configured Hyper+{key}", "chord": normalize_chord(f"cmd+alt+ctrl+shift+{key}")}
         for key in sorted(keys)

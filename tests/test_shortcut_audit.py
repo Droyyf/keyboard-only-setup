@@ -32,7 +32,7 @@ class ShortcutAuditTest(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("cross-owner collision cmd+alt+ctrl+shift+h", result.stdout)
 
-    def test_audit_includes_skhd_yabai_shortcuts(self):
+    def test_removed_skhd_direct_shortcut_does_not_collide(self):
         with tempfile.TemporaryDirectory() as directory:
             fixture = Path(directory) / "raycast.json"
             fixture.write_text(json.dumps({"assignments": [
@@ -43,8 +43,7 @@ class ShortcutAuditTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
             )
-        self.assertEqual(result.returncode, 1)
-        self.assertIn("cross-owner collision alt+h", result.stdout)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
 
 if __name__ == "__main__":

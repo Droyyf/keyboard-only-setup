@@ -369,26 +369,20 @@ run("module stops legacy global window-follow watchers during an upgrade", funct
   assertTrue(fake.api._appWatcher ~= nil, "the managed watcher must replace the stopped legacy watcher")
 end)
 
-run("unambiguous registry keys are promoted to direct shortcuts automatically", function()
+run("direct Hyper bindings are limited to apps, essential placement, and HUD entry", function()
   for _, mode in ipairs({ "left", "dual" }) do
     local fake = newFake(mode, true)
-    local automatic = fake.api.debugStatus().automaticDirectKeys
-    assertTrue(#automatic > 0, mode .. " mode must expose at least one automatic direct shortcut")
-    local sawY = false
-    for _, key in ipairs(automatic) do
-      if key == "y" then sawY = true end
-      assertTrue(findBinding(fake, HYPER, key) ~= nil,
-        mode .. " automatic key " .. key .. " must have a live direct binding")
+    local expected = mode == "left"
+      and { a = true, c = true, f = true, t = true, q = true, w = true, e = true,
+        x = true, ["3"] = true, ["/"] = true, ["`"] = true }
+      or { a = true, c = true, f = true, t = true, h = true, l = true, [";"] = true,
+        x = true, ["3"] = true, ["/"] = true, ["`"] = true }
+    local actual = {}
+    for _, candidate in ipairs(fake.bindings) do
+      if candidate.mods == sorted(HYPER) then actual[candidate.key] = true end
     end
-    assertTrue(sawY, mode .. " mode must promote the unique Shift+Tab action on Y")
-    local hasN = false
-    for _, key in ipairs(automatic) do if key == "n" then hasN = true end end
-    assertEqual(hasN, mode == "left",
-      "N must be promoted only in LH, where the 2H next-window owner is absent")
-    binding(fake, HYPER, "y").pressed()
-    local stroke = fake.keyStrokes[#fake.keyStrokes]
-    assertEqual(stroke.key, "tab", "automatic Hyper+Y must execute Shift+Tab")
-    assertEqual(stroke.mods, "shift", "automatic Hyper+Y must retain the layer action modifiers")
+    for key in pairs(expected) do assertTrue(actual[key], mode .. " must directly bind " .. key) end
+    for key in pairs(actual) do assertTrue(expected[key], mode .. " has forbidden direct binding " .. key) end
   end
 end)
 
@@ -496,8 +490,9 @@ run("running-app switcher uses a held-Hyper layer instead of control shortcuts",
       },
     }
   end
-  binding(fake, HYPER, "r").pressed()
-  assertEqual(fake.api.debugStatus().layer, "app-switcher", "Hyper+R must open the held-Hyper app layer")
+  enterLayerViaHub(fake, "a", "apps")
+  tapKey(fake, KEY.r, HYPER_FLAGS)
+  assertEqual(fake.api.debugStatus().layer, "app-switcher", "Apps HUD R must open the held-Hyper app layer")
   tapKey(fake, KEY.a, HYPER_FLAGS)
   assertTrue(activated, "the plain app key must activate its running app")
   assertEqual(fake.api.debugStatus().layer, nil, "app selection must close its visual layer")
@@ -643,20 +638,16 @@ run("brightness and previous-display shortcuts are gone", function()
   end
 end)
 
-run("volume and mute stay; mute exists in both modes", function()
+run("volume and mute execute only through the System HUD in both modes", function()
   for _, mode in ipairs({ "left", "dual" }) do
     local fake = newFake(mode, true)
-    local up = findBinding(fake, HYPER, mode == "left" and "q" or "up")
-    local down = findBinding(fake, HYPER, mode == "left" and "z" or "down")
-    local mute = findBinding(fake, HYPER, "m")
-    assertTrue(up ~= nil, mode .. " mode must keep volume up")
-    assertTrue(down ~= nil, mode .. " mode must keep volume down")
-    assertTrue(mute ~= nil, mode .. " mode must bind mute on Hyper+M")
-    up.pressed()
+    assertTrue(findBinding(fake, HYPER, "m") == nil, mode .. " mute must not be direct")
+    enterLayerViaHub(fake, "d", "system")
+    tapKey(fake, KEY.q, HYPER_FLAGS)
     assertEqual(fake.volume, 55, mode .. " volume up must raise volume")
-    down.pressed()
+    tapKey(fake, KEY.z, HYPER_FLAGS)
     assertEqual(fake.volume, 50, mode .. " volume down must lower volume")
-    mute.pressed()
+    tapKey(fake, KEY.m, HYPER_FLAGS)
     assertTrue(fake.muted, mode .. " mute must toggle the output device")
   end
 end)
@@ -744,27 +735,20 @@ run("snap layer places the captured window without Shift", function()
   releaseHyper(fake)
 end)
 
-run("dual mode keeps its direct Hyper snap map", function()
-  local fake = newFake("dual", true)
-  local moved = {}
-  fake.focusedWindow = {
-    isStandard = function() return true end,
-    moveToUnit = function(_, unit) table.insert(moved, unit) end,
-  }
-  local expected = {
-    h = { 0, 0, 0.5, 1 }, l = { 0.5, 0, 0.5, 1 },
-    k = { 0, 0, 1, 0.5 }, j = { 0, 0.5, 1, 0.5 },
-    u = { 0, 0, 0.5, 0.5 }, i = { 0.5, 0, 0.5, 0.5 },
-    o = { 0, 0.5, 0.5, 0.5 }, p = { 0.5, 0.5, 0.5, 0.5 },
-  }
-  for key, wanted in pairs(expected) do
-    binding(fake, HYPER, key).pressed()
-    local actual = moved[#moved]
-    assertTrue(actual ~= nil, "snap " .. key .. " must move the focused window")
-    assertEqual(actual.x, wanted[1], "snap " .. key .. " x")
-    assertEqual(actual.y, wanted[2], "snap " .. key .. " y")
-    assertEqual(actual.w, wanted[3], "snap " .. key .. " width")
-    assertEqual(actual.h, wanted[4], "snap " .. key .. " height")
+run("both modes directly expose only left half, maximize, and right half", function()
+  for _, mode in ipairs({ "left", "dual" }) do
+    local fake = newFake(mode, true)
+    local moved = {}
+    fake.focusedWindow = {
+      isStandard = function() return true end,
+      moveToUnit = function(_, unit) table.insert(moved, unit) end,
+    }
+    local keys = mode == "left" and { "q", "w", "e" } or { "h", ";", "l" }
+    local widths = { 0.5, 1, 0.5 }
+    for index, key in ipairs(keys) do
+      binding(fake, HYPER, key).pressed()
+      assertEqual(moved[#moved].w, widths[index], mode .. " placement width for " .. key)
+    end
   end
 end)
 
@@ -793,7 +777,8 @@ run("window hints only cover the display the pointer is on", function()
     { isStandard = function() return true end, isMinimized = function() return false end,
       screen = function() return fake.otherScreen end },
   }
-  binding(fake, HYPER, "e").pressed()
+  enterLayerViaHub(fake, "a", "apps")
+  tapKey(fake, KEY.e, HYPER_FLAGS)
   assertEqual(#fake.hintCalls, 1, "hints must be requested once")
   assertEqual(#fake.hintCalls[1], 1, "hints must be filtered to the pointer display")
   assertEqual(fake.hintStyle, "default", "hints must retain Hammerspoon's readable default placement")
@@ -885,7 +870,8 @@ run("window-follow accepts switcher, Cmd+Tab, and window-hint intent only", func
   local fake = newFake("left", true)
   local switched = makeTarget(fake, "Switcher", "com.example.switcher", 703)
   fake.hs.application.runningApplications = function() return { switched } end
-  binding(fake, HYPER, "r").pressed()
+  enterLayerViaHub(fake, "a", "apps")
+  tapKey(fake, KEY.r, HYPER_FLAGS)
   tapKey(fake, KEY.a, HYPER_FLAGS)
   activateForFollow(fake, switched)
   assertEqual(fake.followMoves, 1, "a running-app switcher selection must authorize follow")
@@ -900,7 +886,8 @@ run("window-follow accepts switcher, Cmd+Tab, and window-hint intent only", func
   local hinted, hintedWindow = makeTarget(fake, "Hinted", "com.example.hinted", 705)
   hintedWindow.screen = function() return fake.screen end
   fake.windows = { hintedWindow }
-  binding(fake, HYPER, "e").pressed()
+  enterLayerViaHub(fake, "a", "apps")
+  tapKey(fake, KEY.e, HYPER_FLAGS)
   hintedWindow.screen = function() return fake.otherScreen end
   tapKey(fake, KEY.a, HYPER_FLAGS)
   activateForFollow(fake, hinted)
@@ -964,7 +951,9 @@ run("mode switch reloads only after the transactional helper succeeds", function
 
   local fake = newFake("left", true)
   local reloadsBefore = fake.reloads
-  binding(fake, HYPER, "tab").pressed()
+  enterLayerViaHub(fake, "r", "utilities")
+  tapKey(fake, KEY.right, HYPER_FLAGS)
+  tapKey(fake, KEY["return"], HYPER_FLAGS)
   assertEqual(fake.api.getMode(), "dual", "a successful helper must switch the in-memory mode")
   local sawHelper = false
   for _, command in ipairs(fake.commands) do
@@ -989,7 +978,8 @@ run("left hints use the requested alphabet", function()
     { isStandard = function() return true end, isMinimized = function() return false end,
       screen = function() return fake.screen end },
   }
-  binding(fake, HYPER, "e").pressed()
+  enterLayerViaHub(fake, "a", "apps")
+  tapKey(fake, KEY.e, HYPER_FLAGS)
   assertEqual(table.concat(fake.hintChars, ""), "asdfqwerzxcv", "left hints must use the left-hand alphabet")
 end)
 

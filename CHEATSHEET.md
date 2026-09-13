@@ -6,17 +6,18 @@
 
 | Mode | Shortcut | Action |
 | :--- | :--- | :--- |
-| Both | Hyper + Tab | Switch between LH and 2H modes |
 | Both | Hyper + / | Open the Action Hub |
 | Both | Hyper + X | Open Snap & System |
 | Both | Hyper + 3 | Open Navigation |
 | Both | Hyper + ` | Open the complete shortcut reference |
-| Both | Hyper + Escape | Reload Hammerspoon and skhd |
-| 2H | Hyper + 0 | Reload Hammerspoon and skhd |
 
 Keep holding Hyper while a HUD is visible. Press `/`, `X`, `3`, or backtick to switch HUDs. Use a displayed key directly, or select with arrows or Tab and run with Return. Release Hyper to close.
+Mode switching and reload are in **Action Hub → Utilities**.
 
-## Direct Hammerspoon shortcuts
+## Direct execution
+
+Only app toggles, three window placements, and HUD entry controls are global.
+Every other action is executed from an HUD.
 
 | Mode | Shortcut | Action |
 | :--- | :--- | :--- |
@@ -24,25 +25,15 @@ Keep holding Hyper while a HUD is visible. Press `/`, `X`, `3`, or backtick to s
 | Both | Hyper + C | Toggle ChatGPT: launch, focus, or minimize |
 | Both | Hyper + F | Toggle Finder: launch, focus, or minimize |
 | Both | Hyper + T | Toggle kitty: launch, focus, or minimize |
-| Both | Hyper + Space | Open Raycast |
-| Both | Hyper + R | Open the running-app switcher |
-| Both | Hyper + V | Open clipboard history |
-| Both | Hyper + E | Show window hints on the pointer display |
-| Both | Hyper + G | Open the keyboard mouse grid |
-| Both | Hyper + 5 | Search menu-bar commands |
-| 2H | Hyper + N | Focus the next window of the current app |
-| LH | Hyper + 4 | Focus the next window of the current app |
-| 2H | Hyper + Up | Increase volume |
-| 2H | Hyper + Down | Decrease volume |
-| LH | Hyper + Q | Increase volume |
-| LH | Hyper + Z | Decrease volume |
-| Both | Hyper + M | Toggle mute |
-| Both | Hyper + B | Toggle macOS light or dark appearance |
-| Both | Hyper + S | Save the current window layout |
-| Both | Hyper + D | Restore the saved window layout |
-| Both | Hyper + W | Open kitty at the Finder folder, or focus kitty |
-| Both | Hyper + Y | Shift + Tab; automatically promoted because Y is unique |
-| LH | Hyper + N | New browser tab; automatically promoted because N is unique in LH |
+| LH | Hyper + Q | Left half |
+| LH | Hyper + W | Maximize |
+| LH | Hyper + E | Right half |
+| 2H | Hyper + H | Left half |
+| 2H | Hyper + ; | Maximize |
+| 2H | Hyper + L | Right half |
+
+The direct HUD controls remain **Hyper+/**, **Hyper+X**, **Hyper+3**, and
+**Hyper+backtick**. They open visual menus and do not execute workflow actions.
 
 ## Window-follow
 
@@ -51,111 +42,11 @@ one explicit selection: an app toggle, a running-app switcher selection, macOS
 **Command+Tab**, or a selected **Hyper+E** window hint. Dock clicks, file opens,
 notifications, and normal app activation do not move a window.
 
-## Direct 2H snapping
+## HUD-only actions
 
-| Shortcut | Action |
-| :--- | :--- |
-| Hyper + H | Snap left half |
-| Hyper + J | Snap bottom half |
-| Hyper + K | Snap top half |
-| Hyper + L | Snap right half |
-| Hyper + U | Snap top-left quarter |
-| Hyper + I | Snap top-right quarter |
-| Hyper + O | Snap bottom-left quarter |
-| Hyper + P | Snap bottom-right quarter |
-| Hyper + ; | Maximize |
-| Hyper + ' | Center |
-
-## Direct scrolling
-
-| Mode | Shortcut | Action |
-| :--- | :--- | :--- |
-| 2H | Control + Option + Up | Scroll up |
-| 2H | Control + Option + Down | Scroll down |
-| 2H | Control + Option + Left | Scroll left |
-| 2H | Control + Option + Right | Scroll right |
-| LH | Control + Option + W | Scroll up |
-| LH | Control + Option + S | Scroll down |
-| LH | Control + Option + A | Scroll left |
-| LH | Control + Option + D | Scroll right |
-
-## Direct skhd shortcuts: LH
-
-| Shortcut | Action |
-| :--- | :--- |
-| Option + W | Focus window above |
-| Option + A | Focus window left |
-| Option + S | Focus window below |
-| Option + D | Focus window right |
-| Option + Q | Focus next window |
-| Option + Shift + W | Move or swap window up |
-| Option + Shift + A | Move or swap window left |
-| Option + Shift + S | Move or swap window down |
-| Option + Shift + D | Move or swap window right |
-| Fn + W | Resize from top edge |
-| Fn + A | Resize from left edge |
-| Fn + S | Resize from bottom edge |
-| Fn + D | Resize from right edge |
-| Option + 1 | Focus Space 1 |
-| Option + 2 | Focus Space 2 |
-| Option + 3 | Focus Space 3 |
-| Option + 4 | Focus Space 4 |
-| Option + 5 | Focus Space 5 |
-| Option + Shift + 1 | Send window to Space 1 and follow |
-| Option + Shift + 2 | Send window to Space 2 and follow |
-| Option + Shift + 3 | Send window to Space 3 and follow |
-| Option + Shift + 4 | Send window to Space 4 and follow |
-| Option + Shift + 5 | Send window to Space 5 and follow |
-| Option + Z | Focus next Space |
-| Option + X | Focus previous Space |
-| Option + E | Toggle fullscreen |
-| Option + R | Toggle floating |
-| Option + F | Move current Space to the other display |
-| Option + G | Move focused window to next display and wrap |
-| Option + T | Toggle float or BSP layout |
-
-## Direct skhd shortcuts: 2H
-
-| Shortcut | Action |
-| :--- | :--- |
-| Option + H | Focus window left |
-| Option + J | Focus window below |
-| Option + K | Focus window above |
-| Option + L | Focus window right |
-| Option + Tab | Focus next window |
-| Option + Shift + H | Move or swap window left |
-| Option + Shift + J | Move or swap window down |
-| Option + Shift + K | Move or swap window up |
-| Option + Shift + L | Move or swap window right |
-| Fn + H | Resize from left edge |
-| Fn + J | Resize from bottom edge |
-| Fn + K | Resize from top edge |
-| Fn + L | Resize from right edge |
-| Option + 1 | Focus Space 1 |
-| Option + 2 | Focus Space 2 |
-| Option + 3 | Focus Space 3 |
-| Option + 4 | Focus Space 4 |
-| Option + 5 | Focus Space 5 |
-| Option + 6 | Focus Space 6 |
-| Option + 7 | Focus Space 7 |
-| Option + 8 | Focus Space 8 |
-| Option + 9 | Focus Space 9 |
-| Option + Shift + 1 | Send window to Space 1 and follow |
-| Option + Shift + 2 | Send window to Space 2 and follow |
-| Option + Shift + 3 | Send window to Space 3 and follow |
-| Option + Shift + 4 | Send window to Space 4 and follow |
-| Option + Shift + 5 | Send window to Space 5 and follow |
-| Option + Shift + 6 | Send window to Space 6 and follow |
-| Option + Shift + 7 | Send window to Space 7 and follow |
-| Option + Shift + 8 | Send window to Space 8 and follow |
-| Option + Shift + 9 | Send window to Space 9 and follow |
-| Option + Z | Focus next Space |
-| Option + V | Focus previous Space |
-| Option + F | Toggle fullscreen |
-| Option + S | Toggle floating |
-| Option + X | Move current Space to the other display |
-| Option + Right | Move focused window to next display and wrap |
-| Option + T | Toggle float or BSP layout |
+Window focus, move, resize, Spaces, display movement, scrolling, media,
+navigation, utilities, switchers, hints, and mouse tools have no standalone
+global shortcuts. Open an HUD and use the displayed key or arrow selection.
 
 ## Action Hub
 

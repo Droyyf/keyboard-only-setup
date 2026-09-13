@@ -15,10 +15,10 @@ ring and wraps from the final display back to the first.
 Read [CHEATSHEET.md](CHEATSHEET.md) for the complete map and
 [METHODOLOGY.md](METHODOLOGY.md) for the ownership and recovery model.
 
-## Direct shortcut quick reference
+## Direct shortcut policy
 
-These actions work immediately without opening a HUD. The complete direct
-Hammerspoon and skhd maps are listed one shortcut per row in the cheat sheet.
+Only application toggles, three window placements, and HUD entry controls are
+global. Everything else runs from a generated HUD.
 
 | Mode | Shortcut | Action |
 | :--- | :--- | :--- |
@@ -26,19 +26,12 @@ Hammerspoon and skhd maps are listed one shortcut per row in the cheat sheet.
 | Both | Hyper + C | Toggle ChatGPT |
 | Both | Hyper + F | Toggle Finder |
 | Both | Hyper + T | Toggle kitty |
-| Both | Hyper + Space | Open Raycast |
-| Both | Hyper + R | Open running-app switcher |
-| Both | Hyper + V | Open clipboard history |
-| Both | Hyper + E | Show window hints |
-| Both | Hyper + G | Open mouse grid |
-| Both | Hyper + Y | Shift + Tab; automatically promoted unique action |
-| LH | Hyper + N | New browser tab; automatically promoted unique action |
-| LH | Option + G | Move window to next display and wrap |
-| 2H | Option + Right | Move window to next display and wrap |
+| LH | Hyper + Q / W / E | Left half / maximize / right half |
+| 2H | Hyper + H / ; / L | Left half / maximize / right half |
 
-The workflow also promotes a HUD action to a direct Hyper shortcut whenever
-its key has exactly one meaning in the active mode and no existing direct owner.
-Reused keys stay inside their HUD so one chord never performs two actions.
+**Hyper+/** opens the Action Hub. **Hyper+X**, **Hyper+3**, and
+**Hyper+backtick** open or switch visual menus; they do not directly execute an
+action. The skhd profiles intentionally declare no standalone shortcuts.
 
 ## Window-follow behavior
 
@@ -129,7 +122,8 @@ python3 audit_shortcuts.py --live
 
 ## Refresh after editing
 
-For a quick live reload without changing files, press **Hyper+Escape**.
+For a quick live reload without changing files, open **Action Hub → Utilities**
+and run **Reload configuration**.
 
 After editing the repository sources, run the following from this repository:
 

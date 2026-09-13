@@ -55,6 +55,18 @@ class ModeSwitchTest(unittest.TestCase):
             self.switch('left', lambda: self.fail('must not reload invalid profile'))
         self.assertEqual(self.mode.read_text(), 'dual\n')
 
+    def test_intentionally_empty_profile_is_valid(self):
+        (self.config/'skhdrc-left').write_text('# LEFT-HAND MODE\n# direct-bindings: none\n')
+        self.switch('left')
+        self.assertEqual(self.mode.read_text(), 'left\n')
+        self.assertEqual(self.active.read_text(), '# LEFT-HAND MODE\n# direct-bindings: none\n')
+
+    def test_unmarked_empty_profile_is_rejected(self):
+        (self.config/'skhdrc-left').write_text('# accidentally emptied\n')
+        with self.assertRaisesRegex(ValueError, 'Empty shortcut profile'):
+            self.switch('left')
+        self.assertEqual(self.mode.read_text(), 'dual\n')
+
     def test_invalid_mode_rejected(self):
         with self.assertRaises(ValueError):
             self.switch('../other')

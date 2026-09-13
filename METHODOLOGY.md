@@ -9,7 +9,7 @@ See **[CHEATSHEET.md](CHEATSHEET.md)** for the complete map and **[RAYCAST_SETUP
 - **Raycast:** Caps Lock → Hyper and searchable commands. Its Window Management commands have no global hotkeys.
 - **skhd:** low-latency window focus, move, resize, Space and display commands; one selected profile at a time.
 - **yabai:** executes window, Space, and display operations. Helpers resolve `$HOME/.local/src/yabai-macos27` first, then `$HOME/dev/yabai-macos27`.
-- **Hammerspoon:** mode switch and indicator; apps, hints, grid, scrolling, media, snapshots, window-follow; direct two-hand snapping; snapping and navigation layers; a Hyper-held HUD and reference generated from the active shortcut registry.
+- **Hammerspoon:** mode switch and indicator; apps, hints, grid, scrolling, media, snapshots, window-follow; the limited direct app and placement map; snapping and navigation layers; a Hyper-held HUD and reference generated from the active shortcut registry.
 - **Shortcat:** existing ⌘⇧Space activation for accessibility-based UI search.
 
 The left-hand map uses W/A/S/D for direction. Short, explicitly entered layers make the less frequent actions available without stretching or losing actions such as Spaces 6–9. Outside those layers, normal typing remains unchanged. This is a shortcut/control map, not a one-hand text-entry layout.
@@ -33,13 +33,12 @@ Use the mode switch rather than editing the generated active `skhdrc`: edit the 
 
 ## Switching and recovery
 
-**Hyper+Tab** switches mode; the menu bar shows **2H** or **LH**. Hold Hyper for **/** to open the executable Action Hub, then press the plain key displayed by its layer or select an entry with arrows/Tab and run it with Return; releasing Hyper closes every Hammerspoon HUD. **Hyper+backtick** displays the complete active map, with arrows, Tab, **Hyper+[**, and **Hyper+]** paging it. Both surfaces are rendered from the same active registry as the bindings. **Hyper+Escape** reloads the configuration. Two-hand mode also binds **Hyper+0** to reload. A missing mode file is treated as **LH**, matching the installer.
+The menu bar shows **2H** or **LH**. Hold Hyper for **/** to open the executable Action Hub, then press the plain key displayed by its layer or select an entry with arrows/Tab and run it with Return; releasing Hyper closes every Hammerspoon HUD. **Hyper+backtick** displays the complete active map, with arrows, Tab, **Hyper+[**, and **Hyper+]** paging it. Both surfaces are rendered from the same active registry as the bindings. Mode switching and reload live in the Utilities HUD. A missing mode file is treated as **LH**, matching the installer.
 
-Direct Hammerspoon shortcuts are generated from the same registry. Explicit
-app, system, launcher, HUD, and 2H snap bindings are registered first. A layer
-action is then promoted automatically only when its key occurs once across the
-active mode and no explicit direct action owns it. The complete direct map is
-maintained in [CHEATSHEET.md](CHEATSHEET.md).
+The direct policy is explicit: app toggles plus left half, maximize, and right
+half placement. HUD entry chords are the only other global Hyper bindings.
+There is no automatic promotion, and the skhd profiles expose no standalone
+shortcuts. The complete map is maintained in [CHEATSHEET.md](CHEATSHEET.md).
 
 The switching helper validates the target profile, serializes concurrent requests, atomically replaces the active skhd file, requests skhd reload, and only then records the selected mode. Reported reload or write failures restore the previous files and request another reload. skhd's reload command signals the daemon; live input testing is still needed to establish that the daemon has actually adopted every binding.
 
