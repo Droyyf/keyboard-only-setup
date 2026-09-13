@@ -143,6 +143,18 @@ LH/2H mode, then reloads both engines. It waits for Hammerspoon's command port
 to recover and finishes with installed-file drift and active-profile checks.
 It does not rerun Homebrew or reinstall applications.
 
+For a privacy-safe runtime snapshot, including the active mode, open HUD,
+pending window-follow intent, and renderer counters, run:
+
+```sh
+hs -c 'return hs.json.encode(require("keyboard").debugStatus())'
+```
+
+`actionErrors` means a shortcut callback failed but was contained. `renderErrors`
+means Hammerspoon rejected both HUD element sets; the workflow hides that canvas
+instead of displaying an empty panel. Canvas reuse counters should increase as
+you navigate inside an already-open HUD.
+
 ## Restore or uninstall
 
 List the available backups, choose one timestamped directory, then restore it:

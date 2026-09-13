@@ -58,6 +58,12 @@ To restore the old setup, restore the backed-up Hammerspoon files and original s
 
 ## Behavioral boundaries
 
+Shortcut and renderer callbacks are guarded at the shared dispatch boundary.
+An individual failure is logged, counted in `debugStatus()`, and shown as a
+short alert without escaping through the global hotkey or eventtap callback.
+HUD rendering uses a simplified fallback element set; if both attempts fail,
+the empty canvas is hidden and the failure is exposed through `renderErrors`.
+
 - Hammerspoon owns every global snap chord and window-follow. The installer removes the exact legacy unconditional `AppWatcher`/`CloseWatcher` and Hyper+End block from `~/.hammerspoon/init.lua`, preserving unrelated automation; `keyboard.lua` also stops those legacy globals defensively during an upgrade.
 - Window-follow is intent-gated: it pulls only once after an app toggle, a running-app switcher selection, macOS **Command+Tab**, or a selected **Hyper+E** hint. Ordinary activation from the Dock, a file, a notification, or another app never authorizes a pull.
 - Raycast Window Management remains enabled for searchable commands, with its global hotkey fields unassigned.

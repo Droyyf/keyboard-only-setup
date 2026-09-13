@@ -59,7 +59,7 @@ end
 
 local function newFake(mode, helperSucceeds, legacyWatchers)
   local fake = {
-    alerts = {}, bindings = {}, canvases = {}, commands = {}, keyStrokes = {},
+    alerts = {}, logs = {}, bindings = {}, canvases = {}, commands = {}, keyStrokes = {},
     launches = {}, bundleLaunches = {}, clicks = {}, scrolls = 0, reloads = 0,
     taps = {}, chooserShown = 0, hintCalls = {}, hintChars = nil, hintStyle = nil,
     volume = 50, muted = false, layoutWrites = 0, runningApplicationsByName = {},
@@ -79,6 +79,7 @@ local function newFake(mode, helperSucceeds, legacyWatchers)
     window = {}, menubar = {}, geometry = {}, chooser = {}, distributednotifications = {},
   }
   fake.hs = hs
+  function hs.printf(_, message) table.insert(fake.logs, message) end
 
   function hs.hotkey.bind(mods, key, pressed, released, repeated)
     local binding = {
@@ -151,6 +152,7 @@ local function newFake(mode, helperSucceeds, legacyWatchers)
     function canvas:isShowing() return self.visible end
     function canvas:delete() self.visible = false; self.deleted = true end
     function canvas:replaceElements(elements)
+      if fake.canvasFailure then error("simulated canvas failure") end
       for _, element in ipairs(elements) do
         if element.action == "fillStroke" then
           error("invalid Hammerspoon canvas action: fillStroke")
@@ -494,6 +496,18 @@ run("HUD redraws reuse the canvas and stay on their opening display", function()
   assertEqual(status.hud.counters.layerCanvasReused, 1, "one redraw must reuse it")
 end)
 
+run("HUD render failures hide the empty canvas and report diagnostics", function()
+  local fake = newFake("left", true)
+  fake.canvasFailure = true
+  local ok = pcall(function() openHub(fake) end)
+  assertTrue(ok, "canvas rejection must not escape the HUD opener")
+  assertTrue(not fake.canvases[#fake.canvases].visible, "a failed HUD canvas must remain hidden")
+  assertEqual(fake.api.debugStatus().hud.counters.renderErrors, 1,
+    "a failed primary and fallback render must count as one failure")
+  assertTrue(fake.alerts[#fake.alerts]:find("HUD rendering failed", 1, true) ~= nil,
+    "the user must receive visible render-failure feedback")
+end)
+
 run("direct hotkeys stay registered and ignore callbacks while a HUD menu is open", function()
   local fake = newFake("left", true)
   local directArc = binding(fake, HYPER, "a")
@@ -569,6 +583,32 @@ run("arrow and Return navigation execute the selected HUD item while Hyper stays
   tapKey(fake, KEY["return"], HYPER_FLAGS)
   assertEqual(fake.api.debugStatus().layer, "windows", "Return must execute the selected Windows entry")
   assertTrue(fake.api.debugStatus().hyper, "Hyper must remain held after navigating into another HUD")
+end)
+
+run("HUD navigation wraps across rows, columns, and reference pages", function()
+  local fake = newFake("left", true)
+  openHub(fake)
+  tapKey(fake, KEY.up, HYPER_FLAGS)
+  tapKey(fake, KEY["return"], HYPER_FLAGS)
+  assertEqual(fake.api.debugStatus().layer, "system",
+    "Up from the first hub row must wrap to the last row in that column")
+
+  releaseHyper(fake)
+  binding(fake, HYPER, "`").pressed()
+  tapKey(fake, KEY.left, HYPER_FLAGS)
+  assertTrue(fake.api.debugStatus().hud.referencePage > 1,
+    "Left from reference page one must wrap to the final page")
+end)
+
+run("action failures are contained and reported without killing shortcut routing", function()
+  local fake = newFake("left", true)
+  fake.hs.application.get = function() error("simulated application API failure") end
+  local ok = pcall(function() binding(fake, HYPER, "a").pressed() end)
+  assertTrue(ok, "a failing action must not escape its hotkey callback")
+  assertEqual(fake.api.debugStatus().hud.counters.actionErrors, 1,
+    "the workflow must expose the contained action failure")
+  assertTrue(fake.alerts[#fake.alerts]:find("Shortcut failed", 1, true) ~= nil,
+    "the user must receive concise failure feedback")
 end)
 
 run("every layer opens from the hub with a Hyper-held key in both modes", function()

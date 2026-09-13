@@ -64,6 +64,14 @@ local function showAlert(message, seconds)
   hs.alert.show(message, nil, nil, seconds or 1.2)
 end
 
+local function logWorkflowError(message)
+  if hs.printf then
+    hs.printf("%s", message)
+  else
+    print(message)
+  end
+end
+
 local function screenFrame(screen)
   local raw = screen and screen:frame()
   if not raw then return nil end
@@ -179,6 +187,7 @@ local activeLayer = nil          -- { id = ..., def = ..., keys = { [key] = fn }
 local layerState = {}            -- per-layer toggles (move/resize/send/select)
 local referenceVisible = false
 local referencePage = 1
+local referencePageCount = 1
 local hintsVisible = false
 local hintWindowIDs = nil
 local gridState = nil            -- assigned by the mouse-grid section below
@@ -192,6 +201,7 @@ local hudMetrics = {
   layerCanvasCreated = 0, layerCanvasReused = 0,
   referenceCanvasCreated = 0, referenceCanvasReused = 0,
   layerRedraws = 0, referenceRedraws = 0,
+  actionErrors = 0, renderErrors = 0,
 }
 local hudTimer = nil
 local directHotkeys = {}         -- Carbon fallback bindings; callbacks are guarded while a HUD is open
@@ -269,14 +279,23 @@ closeAllHuds = function()
   closeLayer()
 end
 
+local function runAction(action, label)
+  local ok, err = xpcall(action, debug.traceback)
+  if ok then return true end
+  hudMetrics.actionErrors = hudMetrics.actionErrors + 1
+  logWorkflowError("keyboard workflow action failed [" .. tostring(label or "unknown") .. "]: " .. tostring(err))
+  showAlert("Shortcut failed: " .. tostring(label or "action"), 1.8)
+  return false
+end
+
 local function routeHudKey(name)
   if referenceVisible then
     if name == "escape" or name == "`" then closeReference() end
     if name == "[" or name == "left" or name == "up" then
-      referencePage = math.max(1, referencePage - 1)
+      referencePage = ((referencePage - 2) % referencePageCount) + 1
       if renderReference then renderReference() end
     elseif name == "]" or name == "right" or name == "down" or name == "tab" then
-      referencePage = referencePage + 1
+      referencePage = (referencePage % referencePageCount) + 1
       if renderReference then renderReference() end
     end
     return
@@ -307,20 +326,22 @@ local function routeHudKey(name)
     local count = #activeLayer.order
     local rows = math.ceil(count / 2)
     local selected = activeLayer.selected or 1
+    local columnStart = selected <= rows and 1 or rows + 1
+    local columnEnd = selected <= rows and rows or count
     if name == "up" then
-      activeLayer.selected = math.max(1, selected - 1)
+      activeLayer.selected = selected == columnStart and columnEnd or selected - 1
       refreshLayer()
       return
     elseif name == "down" then
-      activeLayer.selected = math.min(count, selected + 1)
+      activeLayer.selected = selected == columnEnd and columnStart or selected + 1
       refreshLayer()
       return
     elseif name == "left" then
-      activeLayer.selected = math.max(1, selected - rows)
+      activeLayer.selected = selected <= rows and math.min(count, selected + rows) or selected - rows
       refreshLayer()
       return
     elseif name == "right" then
-      activeLayer.selected = math.min(count, selected + rows)
+      activeLayer.selected = selected <= rows and math.min(count, selected + rows) or selected - rows
       refreshLayer()
       return
     elseif name == "tab" then
@@ -329,11 +350,14 @@ local function routeHudKey(name)
       return
     elseif name == "return" then
       local selectedItem = activeLayer.order[selected]
-      if selectedItem and selectedItem.action then selectedItem.action() end
+      if selectedItem and selectedItem.action then runAction(selectedItem.action, selectedItem.label) end
       return
     end
-    local action = activeLayer.keys[name]
-    if action then action() end
+    local item = nil
+    for _, candidate in ipairs(activeLayer.order) do
+      if candidate.key == name then item = candidate; break end
+    end
+    if item and item.action then runAction(item.action, item.label) end
   end
 end
 
@@ -364,7 +388,7 @@ local function handleHudEvent(event)
       resetHudTimeout()
       local switchAction = hudSwitchActions[name]
       if switchAction then
-        switchAction()
+        runAction(switchAction, "open HUD")
         return true
       end
       routeHudKey(name)
@@ -372,7 +396,7 @@ local function handleHudEvent(event)
     end
     local action = directActions[name]
     if action then
-      action()
+      runAction(action.action, action.label)
       return true
     end
     return false
@@ -447,16 +471,24 @@ local function panelElements(colors, x, y, w, h)
 end
 
 local function showCanvas(canvas, elements)
-  local ok = pcall(function() canvas:replaceElements(elements) end)
+  local ok, err = pcall(function() canvas:replaceElements(elements) end)
   if not ok then
     -- Drop decorative attributes rather than losing the whole HUD.
     for _, element in ipairs(elements) do
       element.shadow = nil
       element.textLineBreak = nil
     end
-    pcall(function() canvas:replaceElements(elements) end)
+    ok, err = pcall(function() canvas:replaceElements(elements) end)
+  end
+  if not ok then
+    hudMetrics.renderErrors = hudMetrics.renderErrors + 1
+    logWorkflowError("keyboard workflow HUD rendering failed: " .. tostring(err))
+    pcall(function() canvas:hide() end)
+    showAlert("HUD rendering failed", 1.8)
+    return false
   end
   canvas:show()
+  return true
 end
 
 local function badgeWidth(label)
@@ -598,8 +630,9 @@ local function renderLayer()
     frame = { x = x + pad, y = y + height - pad - 20, w = width - 2 * pad, h = 18 },
     textSize = 11, textColor = colors.secondary, textFont = ".AppleSystemUIFont",
   }
-  showCanvas(layerCanvas, elements)
-  hudMetrics.layerRedraws = hudMetrics.layerRedraws + 1
+  if showCanvas(layerCanvas, elements) then
+    hudMetrics.layerRedraws = hudMetrics.layerRedraws + 1
+  end
 end
 
 refreshLayer = function()
@@ -746,6 +779,7 @@ renderReference = function()
   local x = math.floor((frame.w - width) / 2)
   local y = math.floor((frame.h - height) / 2)
   local pages = referencePageLayout(width, height)
+  referencePageCount = #pages
   referencePage = math.max(1, math.min(referencePage, #pages))
 
   referenceCanvas = canvasForContext(referenceCanvas, context, "reference")
@@ -779,8 +813,9 @@ renderReference = function()
       appendKeyRow(elements, colors, item, columnX, rowY + 26 + (index - 1) * 26, placement.width, 26)
     end
   end
-  showCanvas(referenceCanvas, elements)
-  hudMetrics.referenceRedraws = hudMetrics.referenceRedraws + 1
+  if showCanvas(referenceCanvas, elements) then
+    hudMetrics.referenceRedraws = hudMetrics.referenceRedraws + 1
+  end
 end
 
 local function toggleReference()
@@ -1724,10 +1759,10 @@ hudSwitchActions["`"] = toggleReference
 -- the HUD eventtap is the only router for plain keys at that time.
 -- ---------------------------------------------------------------------------
 local function bindDirect(key, action, label, group)
-  directActions[key] = action
+  directActions[key] = { action = action, label = label }
   local guardedAction = function()
     if anyHudOpen() then return end
-    action()
+    runAction(action, label)
   end
   table.insert(directHotkeys, hs.hotkey.bind(hyper, key, guardedAction))
   addDirectReference(key, label, group)
