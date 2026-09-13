@@ -61,7 +61,7 @@ local function newFake(mode, helperSucceeds, legacyWatchers)
   local fake = {
     alerts = {}, logs = {}, bindings = {}, canvases = {}, commands = {}, keyStrokes = {},
     launches = {}, bundleLaunches = {}, clicks = {}, scrolls = 0, reloads = 0,
-    taps = {}, chooserShown = 0, hintCalls = {}, hintChars = nil, hintStyle = nil,
+    taps = {}, hintCalls = {}, hintChars = nil, hintStyle = nil,
     volume = 50, muted = false, layoutWrites = 0, runningApplicationsByName = {},
     windows = {}, helperSucceeds = helperSucceeds, mode = mode, modifiers = {},
   }
@@ -72,11 +72,11 @@ local function newFake(mode, helperSucceeds, legacyWatchers)
 
   local hs = {
     configdir = "/tmp/keyboard-test",
-    hotkey = {}, timer = {}, alert = {}, application = {}, image = {}, hints = {},
-    mouse = {}, screen = { watcher = {} }, canvas = {}, webview = {},
-    eventtap = { event = {} }, audiodevice = {}, brightness = {},
-    json = {}, fs = {}, osascript = {}, spaces = { watcher = {} },
-    window = {}, menubar = {}, geometry = {}, chooser = {}, distributednotifications = {},
+    hotkey = {}, timer = {}, alert = {}, application = {}, hints = {},
+    mouse = {}, screen = { watcher = {} }, canvas = {},
+    eventtap = { event = {} }, audiodevice = {},
+    json = {}, fs = {}, osascript = {},
+    window = {}, menubar = {}, geometry = {}, distributednotifications = {},
   }
   fake.hs = hs
   function hs.printf(_, message) table.insert(fake.logs, message) end
@@ -105,15 +105,11 @@ local function newFake(mode, helperSucceeds, legacyWatchers)
     table.insert(fake.alerts, message)
     return #fake.alerts
   end
-  function hs.alert.closeSpecific() end
-  function hs.alert.closeAll() end
   function hs.application.runningApplications() return {} end
   function hs.application.frontmostApplication() return fake.frontmostApplication end
   function hs.application.launchOrFocus(name) table.insert(fake.launches, name) end
   function hs.application.launchOrFocusByBundleID(bundleID) table.insert(fake.bundleLaunches, bundleID) end
   function hs.application.get(name) return fake.runningApplicationsByName[name] end
-  function hs.application.applicationForPID() return nil end
-  function hs.image.imageFromAppBundle() return nil end
   function hs.hints.windowHints(windows)
     table.insert(fake.hintCalls, windows or {})
     fake.hintChars = hs.hints.hintChars
@@ -139,7 +135,6 @@ local function newFake(mode, helperSucceeds, legacyWatchers)
   end
   hs.canvas.windowLevels = { assistiveTechHigh = 1500, screenSaver = 1000, overlay = 900, floating = 100 }
   hs.canvas.windowBehaviors = { canJoinAllSpaces = 1, stationary = 2 }
-  hs.webview.windowBehaviors = { canJoinAllSpaces = 1, stationary = 2, fullScreenAuxiliary = 4 }
   function hs.canvas.new(frame)
     local canvas = { frameValue = frame, elements = {}, visible = false }
     function canvas:level(value) if value then self.levelValue = value end return self.levelValue or self end
@@ -163,24 +158,6 @@ local function newFake(mode, helperSucceeds, legacyWatchers)
     table.insert(fake.canvases, canvas)
     return canvas
   end
-  function hs.webview.new(frame)
-    local webview = { frameValue = frame, visible = false }
-    function webview:windowStyle() return self end
-    function webview:transparent() return self end
-    function webview:allowTextEntry() return self end
-    function webview:closeOnEscape() return self end
-    function webview:level(value) self.levelValue = value; return self end
-    function webview:behavior(value) self.behaviorValue = value; return self end
-    function webview:html(value) self.htmlValue = value; return self end
-    function webview:show() self.visible = true; return self end
-    function webview:sendToBack() self.sentToBack = true; return self end
-    function webview:hide() self.visible = false; return self end
-    function webview:isVisible() return self.visible end
-    function webview:delete() self.visible = false; self.deleted = true end
-    fake.webviews = fake.webviews or {}
-    table.insert(fake.webviews, webview)
-    return webview
-  end
   function hs.eventtap.new(types, callback)
     local tap = { types = types, callback = callback, started = false }
     function tap:start() self.started = true end
@@ -202,7 +179,6 @@ local function newFake(mode, helperSucceeds, legacyWatchers)
     if delay <= 0.25 then callback() end
     return timer()
   end
-  function hs.timer.usleep() end
   function hs.timer.secondsSinceEpoch() return fake.now or 1 end
   function hs.audiodevice.defaultOutputDevice()
     return {
@@ -214,10 +190,8 @@ local function newFake(mode, helperSucceeds, legacyWatchers)
   end
   function hs.json.write() fake.layoutWrites = fake.layoutWrites + 1 end
   function hs.json.read() return {} end
-  function hs.json.decode() return nil end
   function hs.fs.attributes() return nil end
   function hs.osascript.applescript() fake.osascriptCalls = (fake.osascriptCalls or 0) + 1; return true, "" end
-  function hs.spaces.watcher.new() return timer() end
   function hs.distributednotifications.new(callback, name)
     fake.appearanceCallback = callback
     fake.appearanceNotification = name
@@ -229,18 +203,6 @@ local function newFake(mode, helperSucceeds, legacyWatchers)
     return { setTitle = function() end, setMenu = function() end }
   end
   function hs.geometry.rect(x, y, w, h) return { x = x, y = y, w = w, h = h } end
-  function hs.chooser.new(callback)
-    local chooser = { callback = callback }
-    function chooser:width() end
-    function chooser:hideCallback(fn) self.hideCallback = fn end
-    function chooser:choices() end
-    function chooser:placeholderText() end
-    function chooser:selectedRow() return 1 end
-    function chooser:selectedRowContents() return nil end
-    function chooser:show() fake.chooserShown = fake.chooserShown + 1 end
-    function chooser:hide() end
-    return chooser
-  end
   hs.window.filter = {
     new = function() return { subscribe = function() end } end,
     windowDestroyed = "windowDestroyed",
@@ -548,8 +510,6 @@ run("HUD panels use an opaque system-aware Canvas surface", function()
   assertEqual(canvas.levelValue, 1500, "HUD text must render above system panels")
   assertEqual(canvas.elements[1].fillColor.alpha, 1, "the HUD panel must be fully opaque")
   assertEqual(canvas.elements[1].fillColor.red, 0, "dark mode must use AMOLED black")
-  assertTrue(not fake.webviews or #fake.webviews == 0,
-    "solid HUDs must not create a separate WebView backdrop")
   releaseHyper(fake)
 
   local light = newFake("left", true)
