@@ -128,6 +128,21 @@ class InstallerTest(unittest.TestCase):
         )
         self.assertEqual(workflow_install._migrate_legacy_window_follow(altered), altered)
 
+    def test_verify_detects_content_permission_and_active_profile_drift(self):
+        workflow_install = importlib.import_module("scripts.workflow_install")
+        workflow_install.install_managed_files(ROOT, self.home, self.backups)
+        workflow_install.activate_mode(self.home, "left")
+        self.assertEqual(workflow_install.verify(ROOT, self.home), [])
+
+        (self.home / ".hammerspoon/keyboard.lua").write_text("stale")
+        helper = self.home / ".config/skhd/yabai-run.sh"
+        helper.chmod(0o644)
+        (self.home / ".config/skhd/skhdrc").write_text("wrong profile")
+        failures = "\n".join(workflow_install.verify(ROOT, self.home))
+        self.assertIn("managed file differs from repository", failures)
+        self.assertIn("managed helper is not executable", failures)
+        self.assertIn("active skhd profile differs", failures)
+
 
 if __name__ == "__main__":
     unittest.main()

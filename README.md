@@ -137,10 +137,11 @@ After editing the repository sources, run the following from this repository:
 ./refresh.sh
 ```
 
-It runs the verification suite, makes a timestamped backup, atomically installs
+It validates the repository, makes a timestamped backup, atomically installs
 only the repository-owned Hammerspoon and skhd files, preserves the selected
-LH/2H mode, then reloads skhd and Hammerspoon. It does not rerun Homebrew or
-reinstall applications.
+LH/2H mode, then reloads both engines. It waits for Hammerspoon's command port
+to recover and finishes with installed-file drift and active-profile checks.
+It does not rerun Homebrew or reinstall applications.
 
 ## Restore or uninstall
 

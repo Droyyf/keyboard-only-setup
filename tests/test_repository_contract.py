@@ -28,6 +28,12 @@ class RepositoryContractTest(unittest.TestCase):
         ):
             self.assertIn(fragment, text)
 
+    def test_refresh_verifies_source_then_waits_and_checks_live_install(self):
+        text = (ROOT / "refresh.sh").read_text()
+        self.assertIn('"$repo_root/verify.sh" --source-only', text)
+        self.assertGreaterEqual(text.count('"$repo_root/verify.sh"'), 2)
+        self.assertIn("Hammerspoon did not restore its CLI message port", text)
+
 
 if __name__ == "__main__":
     unittest.main()

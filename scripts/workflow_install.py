@@ -271,15 +271,26 @@ def _reload_skhd() -> None:
 def verify(repo_root: Path, target_home: Path) -> list[str]:
     """Return human-readable verification failures without mutating the machine."""
     failures: list[str] = []
-    for _, destination_relative in MANAGED_FILES.items():
-        if not (target_home / destination_relative).is_file():
-            failures.append(f"missing managed file: {target_home / destination_relative}")
+    for source_relative, destination_relative in MANAGED_FILES.items():
+        source = repo_root / source_relative
+        destination = target_home / destination_relative
+        if not destination.is_file():
+            failures.append(f"missing managed file: {destination}")
+            continue
+        if source.read_bytes() != destination.read_bytes():
+            failures.append(f"managed file differs from repository: {destination}")
+        if destination_relative in EXECUTABLE_DESTINATIONS and not os.access(destination, os.X_OK):
+            failures.append(f"managed helper is not executable: {destination}")
     mode_file = target_home / ".config/keyboard-mode"
     mode = mode_file.read_text().strip() if mode_file.exists() else None
     if mode not in VALID_MODES:
         failures.append("keyboard mode is missing or invalid")
     elif not (target_home / f".config/skhd/skhdrc-{mode}").is_file():
         failures.append(f"missing profile for mode: {mode}")
+    elif (target_home / ".config/skhd/skhdrc").read_bytes() != (
+        target_home / f".config/skhd/skhdrc-{mode}"
+    ).read_bytes():
+        failures.append(f"active skhd profile differs from selected mode: {mode}")
     return failures
 
 

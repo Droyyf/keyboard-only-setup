@@ -150,7 +150,14 @@ local function newFake(mode, helperSucceeds, legacyWatchers)
     function canvas:hide() self.visible = false end
     function canvas:isShowing() return self.visible end
     function canvas:delete() self.visible = false; self.deleted = true end
-    function canvas:replaceElements(elements) self.elements = elements end
+    function canvas:replaceElements(elements)
+      for _, element in ipairs(elements) do
+        if element.action == "fillStroke" then
+          error("invalid Hammerspoon canvas action: fillStroke")
+        end
+      end
+      self.elements = elements
+    end
     table.insert(fake.canvases, canvas)
     return canvas
   end
@@ -471,6 +478,20 @@ run("HUD canvases open on the display containing the pointer", function()
   assertEqual(canvas.frameValue.x, 1400, "the HUD canvas must use the pointer display origin")
   assertTrue(canvas.elements[1].frame.x < 1400,
     "HUD elements must use screen-local coordinates instead of adding the display origin twice")
+end)
+
+run("HUD redraws reuse the canvas and stay on their opening display", function()
+  local fake = newFake("left", true)
+  fake.pointer = { x = 1500, y = 100 }
+  openHub(fake)
+  local canvas = fake.canvases[#fake.canvases]
+  fake.pointer = { x = 200, y = 100 }
+  tapKey(fake, KEY.down, HYPER_FLAGS)
+  local status = fake.api.debugStatus()
+  assertEqual(#fake.canvases, 1, "selection redraw must reuse the existing HUD canvas")
+  assertEqual(canvas.frameValue.x, 1400, "an open HUD must remain on its original display")
+  assertEqual(status.hud.counters.layerCanvasCreated, 1, "one canvas must be created")
+  assertEqual(status.hud.counters.layerCanvasReused, 1, "one redraw must reuse it")
 end)
 
 run("direct hotkeys stay registered and ignore callbacks while a HUD menu is open", function()

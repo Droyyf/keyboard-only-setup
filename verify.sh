@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 repo_root="$(cd "$(dirname "$0")" && pwd)"
+source_only=false
+if [[ "${1:-}" == "--source-only" ]]; then
+  source_only=true
+  shift
+fi
 
 python3 -m unittest discover -s "$repo_root/tests" -p 'test_*.py' -v
 
@@ -11,5 +16,9 @@ else
 fi
 
 python3 "$repo_root/audit_shortcuts.py"
+
+if [[ "$source_only" == true ]]; then
+  exit 0
+fi
 
 exec python3 "$repo_root/scripts/workflow_install.py" verify "$@"

@@ -184,6 +184,15 @@ local hintWindowIDs = nil
 local gridState = nil            -- assigned by the mouse-grid section below
 local layerCanvas = nil
 local referenceCanvas = nil
+local layerCanvasFrame = nil
+local referenceCanvasFrame = nil
+local layerDisplayContext = nil
+local referenceDisplayContext = nil
+local hudMetrics = {
+  layerCanvasCreated = 0, layerCanvasReused = 0,
+  referenceCanvasCreated = 0, referenceCanvasReused = 0,
+  layerRedraws = 0, referenceRedraws = 0,
+}
 local hudTimer = nil
 local directHotkeys = {}         -- Carbon fallback bindings; callbacks are guarded while a HUD is open
 local directActions = {}         -- eventtap-owned first-key dispatch by key name
@@ -233,8 +242,6 @@ end
 local function hideLayerOverlay()
   if layerCanvas then
     pcall(function() layerCanvas:hide() end)
-    pcall(function() layerCanvas:delete() end)
-    layerCanvas = nil
   end
 end
 
@@ -250,8 +257,6 @@ local function closeReference()
   referencePage = 1
   if referenceCanvas then
     pcall(function() referenceCanvas:hide() end)
-    pcall(function() referenceCanvas:delete() end)
-    referenceCanvas = nil
   end
   syncDirectHotkeys()
 end
@@ -350,7 +355,7 @@ local function handleHudEvent(event)
   if eventType == types.keyUp then return anyHudOpen() end
   local flags = event:getFlags()
   if name == "tab" and flags.cmd and not flags.alt and not flags.ctrl and not flags.shift then
-    if authorizeWindowFollow then authorizeWindowFollow(nil, nil, 3) end
+    if authorizeWindowFollow then authorizeWindowFollow(nil, nil, 3, nil, "command-tab") end
     return false
   end
   if hyperIsDown(flags) then
@@ -429,7 +434,7 @@ end
 -- ---------------------------------------------------------------------------
 local function panelElements(colors, x, y, w, h)
   local panel = {
-    type = "rectangle", action = "fillStroke",
+    type = "rectangle", action = "strokeAndFill",
     frame = { x = x, y = y, w = w, h = h },
     fillColor = colors.panel,
     strokeColor = colors.dark
@@ -465,9 +470,11 @@ local function appendKeyRow(elements, colors, item, x, y, width, spacing, select
   local badgeH = math.min(24, rowH - 6)
   if selected then
     elements[#elements + 1] = {
-      type = "rectangle", action = "fill",
+      type = "rectangle", action = "strokeAndFill",
       frame = { x = x - 8, y = y - 2, w = width + 16, h = rowH - 2 },
       fillColor = colors.selection,
+      strokeColor = colors.accent,
+      strokeWidth = 2,
       roundedRectRadii = { xRadius = 8, yRadius = 8 },
     }
   end
@@ -484,14 +491,14 @@ local function appendKeyRow(elements, colors, item, x, y, width, spacing, select
     textFont = ".AppleSystemUIFont", textAlignment = "center",
   }
   elements[#elements + 1] = {
-    type = "text", text = item.label,
+    type = "text", text = selected and "› " .. item.label or item.label,
     frame = { x = x + bw + 12, y = y + (badgeH - 16) / 2, w = math.max(60, width - bw - 12), h = 18 },
     textSize = 13, textColor = colors.primary,
     textFont = ".AppleSystemUIFont", textLineBreak = "truncateTail",
   }
 end
 
-local function pointerScreenFrame()
+local function pointerDisplayContext()
   local screen = nil
   local point = hs.mouse.absolutePosition and hs.mouse.absolutePosition() or nil
   if point and hs.screen.allScreens then
@@ -506,26 +513,61 @@ local function pointerScreenFrame()
   end
   screen = screen or hs.mouse.getCurrentScreen()
     or (hs.screen.mainScreen and hs.screen.mainScreen())
-  return screenFrame(screen)
+  local frame = screenFrame(screen)
+  return frame and { screen = screen, frame = frame } or nil
+end
+
+local function sameFrame(left, right)
+  return left and right and left.x == right.x and left.y == right.y
+    and left.w == right.w and left.h == right.h
+end
+
+local function canvasForContext(canvas, context, kind)
+  local currentFrame = kind == "layer" and layerCanvasFrame or referenceCanvasFrame
+  if canvas and sameFrame(currentFrame, context.frame) then
+    hudMetrics[kind .. "CanvasReused"] = hudMetrics[kind .. "CanvasReused"] + 1
+    return canvas
+  end
+  if canvas then
+    pcall(function() canvas:hide() end)
+    pcall(function() canvas:delete() end)
+  end
+  canvas = newHudCanvas(context.frame)
+  if kind == "layer" then
+    layerCanvasFrame = context.frame
+  else
+    referenceCanvasFrame = context.frame
+  end
+  hudMetrics[kind .. "CanvasCreated"] = hudMetrics[kind .. "CanvasCreated"] + 1
+  return canvas
 end
 
 local function renderLayer()
-  hideLayerOverlay()
   if not activeLayer then return end
   local def = activeLayer.def
   local colors = hudColors()
-  local frame = pointerScreenFrame()
+  local context = layerDisplayContext or pointerDisplayContext()
+  local frame = context and context.frame
   if not frame then return end
 
-  local width = math.min(640, frame.w - 48)
+  layerDisplayContext = context
+  local width = math.max(1, math.min(640, frame.w - 24))
   local items = activeLayer.order
-  local rows = math.ceil(#items / 2)
-  local pad, titleH, subH, rowH, footerH = 28, 36, 30, 32, 34
-  local height = math.min(pad + titleH + subH + rows * rowH + footerH, frame.h - 48)
+  local pad, titleH, subH, rowH, footerH = 18, 30, 26, 30, 30
+  local maximumHeight = math.max(1, frame.h - 24)
+  local maximumRows = math.max(1, math.floor((maximumHeight - pad - titleH - subH - footerH) / rowH))
+  local pageSize = maximumRows * 2
+  local pageCount = math.max(1, math.ceil(#items / pageSize))
+  local page = math.max(1, math.min(pageCount, math.ceil((activeLayer.selected or 1) / pageSize)))
+  local first, last = (page - 1) * pageSize + 1, math.min(#items, page * pageSize)
+  local pageItems = {}
+  for index = first, last do table.insert(pageItems, { item = items[index], index = index }) end
+  local rows = math.max(1, math.ceil(#pageItems / 2))
+  local height = math.min(maximumHeight, pad + titleH + subH + rows * rowH + footerH)
   local x = math.floor((frame.w - width) / 2)
   local y = math.floor((frame.h - height) / 2)
 
-  layerCanvas = newHudCanvas({ x = frame.x, y = frame.y, w = frame.w, h = frame.h })
+  layerCanvas = canvasForContext(layerCanvas, context, "layer")
   if not layerCanvas then return end
 
   local elements = panelElements(colors, x, y, width, height)
@@ -541,22 +583,23 @@ local function renderLayer()
     textSize = 12, textColor = colors.secondary, textFont = ".AppleSystemUIFont",
     textLineBreak = "truncateTail",
   }
-  local firstColumnRows = math.ceil(#items / 2)
+  local firstColumnRows = math.ceil(#pageItems / 2)
   local columnWidth = (width - 2 * pad - 28) / 2
-  for index, item in ipairs(items) do
-    local column = index <= firstColumnRows and 0 or 1
-    local row = column == 0 and (index - 1) or (index - firstColumnRows - 1)
-    appendKeyRow(elements, colors, item,
+  for pageIndex, entry in ipairs(pageItems) do
+    local column = pageIndex <= firstColumnRows and 0 or 1
+    local row = column == 0 and (pageIndex - 1) or (pageIndex - firstColumnRows - 1)
+    appendKeyRow(elements, colors, entry.item,
       x + pad + column * (columnWidth + 28),
       y + pad + titleH + subH + row * rowH,
-      columnWidth, rowH, index == activeLayer.selected)
+      columnWidth, rowH, entry.index == activeLayer.selected)
   end
   elements[#elements + 1] = {
-    type = "text", text = "Arrows or Tab select  ·  Return runs  ·  release Caps Lock to close",
+    type = "text", text = "Page " .. page .. " of " .. pageCount .. "  ·  arrows or Tab select  ·  Return runs",
     frame = { x = x + pad, y = y + height - pad - 20, w = width - 2 * pad, h = 18 },
     textSize = 11, textColor = colors.secondary, textFont = ".AppleSystemUIFont",
   }
   showCanvas(layerCanvas, elements)
+  hudMetrics.layerRedraws = hudMetrics.layerRedraws + 1
 end
 
 refreshLayer = function()
@@ -573,6 +616,7 @@ local function openLayer(def, initialState)
   activeLayer = { id = def.id, def = def, keys = {}, order = def.keys, selected = 1 }
   for _, item in ipairs(def.keys) do activeLayer.keys[item.key] = item.action end
   layerState = initialState or {}
+  layerDisplayContext = pointerDisplayContext()
   if def.onOpen then pcall(def.onOpen) end
   hyperDown = true
   syncDirectHotkeys()
@@ -612,7 +656,7 @@ openAppSwitcher = function(page)
     table.insert(def.keys, {
       key = key, label = app:name(), action = function()
         closeLayer()
-        if authorizeWindowFollow then authorizeWindowFollow(app, nil, 3) end
+        if authorizeWindowFollow then authorizeWindowFollow(app, nil, 3, nil, "switcher") end
         pcall(function() app:activate() end)
       end,
     })
@@ -650,31 +694,41 @@ local function referenceSections()
 end
 
 local function referencePageLayout(width, height)
-  local pad, gutter, sectionGap = 30, 30, 14
-  local columnWidth = (width - pad * 2 - gutter * 2) / 3
-  local top = 84
-  local bottom = height - pad
+  local pad, gutter, sectionGap = math.max(12, math.min(30, math.floor(width * 0.06))), 18, 12
+  local columns = width < 680 and 1 or (width < 960 and 2 or 3)
+  local columnWidth = (width - pad * 2 - gutter * (columns - 1)) / columns
+  local top = math.min(84, math.max(60, math.floor(height * 0.38)))
+  local bottom = height - math.max(12, math.floor(height * 0.08))
   local pages = { {} }
   local page, column, rowY = 1, 0, top
 
-  for _, section in ipairs(referenceSections()) do
-    local sectionHeight = 30 + #section.items * 26
-    if rowY + sectionHeight > bottom then
-      column = column + 1
-      rowY = top
-    end
-    if column > 2 then
+  local function nextColumn()
+    column, rowY = column + 1, top
+    if column >= columns then
       page = page + 1
       pages[page] = {}
-      column, rowY = 0, top
+      column = 0
     end
-    table.insert(pages[page], {
-      section = section,
-      x = pad + column * (columnWidth + gutter),
-      y = rowY,
-      width = columnWidth,
-    })
-    rowY = rowY + sectionHeight + sectionGap
+  end
+  for _, section in ipairs(referenceSections()) do
+    local index = 1
+    while index <= #section.items do
+      local room = math.floor((bottom - rowY - 30) / 26)
+      if room < 1 then
+        nextColumn()
+        room = math.max(1, math.floor((bottom - rowY - 30) / 26))
+      end
+      local last = math.min(#section.items, index + room - 1)
+      local items = {}
+      for itemIndex = index, last do table.insert(items, section.items[itemIndex]) end
+      table.insert(pages[page], {
+        section = { title = index == 1 and section.title or section.title .. " (cont.)", items = items },
+        x = pad + column * (columnWidth + gutter), y = rowY, width = columnWidth,
+      })
+      rowY = rowY + 30 + #items * 26 + sectionGap
+      index = last + 1
+      if index <= #section.items then nextColumn() end
+    end
   end
   return pages
 end
@@ -682,31 +736,32 @@ end
 renderReference = function()
   if not referenceVisible then return end
   local colors = hudColors()
-  local frame = pointerScreenFrame()
+  local context = referenceDisplayContext or pointerDisplayContext()
+  local frame = context and context.frame
   if not frame then return end
 
-  local width = math.min(1060, frame.w - 48)
-  local height = math.min(800, frame.h - 48)
+  referenceDisplayContext = context
+  local width = math.max(1, math.min(1060, frame.w - 24))
+  local height = math.max(1, math.min(800, frame.h - 24))
   local x = math.floor((frame.w - width) / 2)
   local y = math.floor((frame.h - height) / 2)
   local pages = referencePageLayout(width, height)
   referencePage = math.max(1, math.min(referencePage, #pages))
 
-  if not referenceCanvas then
-    referenceCanvas = newHudCanvas({ x = frame.x, y = frame.y, w = frame.w, h = frame.h })
-  end
+  referenceCanvas = canvasForContext(referenceCanvas, context, "reference")
   if not referenceCanvas then return end
 
   local elements = panelElements(colors, x, y, width, height)
+  local headerPad = math.max(12, math.min(30, math.floor(height * 0.08)))
   elements[#elements + 1] = {
     type = "text", text = "Complete shortcut reference — " .. modeLabel(currentMode),
-    frame = { x = x + 30, y = y + 22, w = width - 60, h = 24 },
-    textSize = 19, textColor = colors.primary, textFont = ".AppleSystemUIFont",
+    frame = { x = x + headerPad, y = y + headerPad, w = width - 2 * headerPad, h = 22 },
+    textSize = height < 220 and 15 or 19, textColor = colors.primary, textFont = ".AppleSystemUIFont",
   }
   elements[#elements + 1] = {
     type = "text", text = "Page " .. referencePage .. " of " .. #pages .. "  ·  arrows, Tab, or [ / ] change page  ·  release Caps Lock to close",
-    frame = { x = x + 30, y = y + 48, w = width - 60, h = 18 },
-    textSize = 12, textColor = colors.secondary, textFont = ".AppleSystemUIFont",
+    frame = { x = x + headerPad, y = y + headerPad + 22, w = width - 2 * headerPad, h = 18 },
+    textSize = height < 220 and 10 or 12, textColor = colors.secondary, textFont = ".AppleSystemUIFont",
     textLineBreak = "truncateTail",
   }
 
@@ -725,6 +780,7 @@ renderReference = function()
     end
   end
   showCanvas(referenceCanvas, elements)
+  hudMetrics.referenceRedraws = hudMetrics.referenceRedraws + 1
 end
 
 local function toggleReference()
@@ -738,6 +794,7 @@ local function toggleReference()
   syncDirectHotkeys()
   referenceVisible = true
   referencePage = 1
+  referenceDisplayContext = pointerDisplayContext()
   renderReference()
   resetHudTimeout()
 end
@@ -813,6 +870,10 @@ local function sendAndFollowSpace(number)
   if not commandSucceeded(command) then showAlert("Space command failed") end
 end
 
+local function scrollBy(x, y)
+  hs.eventtap.event.newScrollEvent({ x, y }, {}, "line"):post()
+end
+
 local function changeVolume(delta)
   local device = hs.audiodevice.defaultOutputDevice()
   if not device then return end
@@ -829,10 +890,6 @@ local function toggleMute()
   showAlert(muted and "Muted" or "Unmuted", 0.6)
 end
 
-local function scrollBy(x, y)
-  hs.eventtap.event.newScrollEvent({ x, y }, {}, "line"):post()
-end
-
 local function toggleDarkMode()
   local ok = hs.osascript.applescript(
     "tell application \"System Events\" to tell appearance preferences to set dark mode to (not dark mode)")
@@ -847,7 +904,7 @@ end
 local function focusOrLaunchApplication(applicationSpec)
   local application = hs.application.get(applicationSpec.bundleID) or hs.application.get(applicationSpec.name)
   if not application then
-    if authorizeWindowFollow then authorizeWindowFollow(nil, nil, 10, applicationSpec) end
+    if authorizeWindowFollow then authorizeWindowFollow(nil, nil, 10, applicationSpec, "app-toggle") end
     if not hs.application.launchOrFocusByBundleID(applicationSpec.bundleID) then
       hs.application.launchOrFocus(applicationSpec.name)
     end
@@ -872,7 +929,7 @@ local function focusOrLaunchApplication(applicationSpec)
     return
   end
 
-  if authorizeWindowFollow then authorizeWindowFollow(application, window, 3, applicationSpec) end
+  if authorizeWindowFollow then authorizeWindowFollow(application, window, 3, applicationSpec, "app-toggle") end
   application:unhide()
   application:activate(true)
   if not window then return end
@@ -924,31 +981,47 @@ local function loadLayout()
     showAlert("Layout snapshot is unavailable")
     return
   end
-  local restored = 0
-  for _, entry in ipairs(layout) do
-    if type(entry) == "table" and type(entry.frame) == "table" and entry.frame.x and entry.frame.w then
-      local app = entry.app and hs.application.get(entry.app) or nil
-      if not app and entry.app and entry.app:find("%.") then
-        hs.application.launchOrFocusByBundleID(entry.app)
-        hs.timer.usleep(400000)
-        app = hs.application.get(entry.app)
+  local restored, remaining, total, finished = 0, 0, 0, false
+  local function finish()
+    if finished then return end
+    finished = true
+    showAlert("Layout restored — " .. restored .. "/" .. total .. " windows")
+  end
+  local function restoreEntry(entry)
+    local app = entry.app and hs.application.get(entry.app) or nil
+    if app then
+      local target = nil
+      for _, window in ipairs(app:allWindows()) do
+        if window:isStandard() and window:title() == entry.title then target = window; break end
       end
-      if app then
-        local target = nil
-        for _, window in ipairs(app:allWindows()) do
-          if window:isStandard() and window:title() == entry.title then target = window; break end
-        end
-        target = target or app:mainWindow()
-        if target and target:isStandard() then
-          local moved = pcall(function()
-            target:setFrame(hs.geometry.rect(entry.frame.x, entry.frame.y, entry.frame.w, entry.frame.h))
-          end)
-          if moved then restored = restored + 1 end
-        end
+      target = target or app:mainWindow()
+      if target and target:isStandard() then
+        local moved = pcall(function()
+          target:setFrame(hs.geometry.rect(entry.frame.x, entry.frame.y, entry.frame.w, entry.frame.h))
+        end)
+        if moved then restored = restored + 1 end
       end
     end
+    remaining = remaining - 1
+    if remaining == 0 then finish() end
   end
-  showAlert("Layout restored — " .. restored .. "/" .. #layout .. " windows")
+  local entries = {}
+  for _, entry in ipairs(layout) do
+    if type(entry) == "table" and type(entry.frame) == "table" and entry.frame.x and entry.frame.w then
+      table.insert(entries, entry)
+    end
+  end
+  remaining, total = #entries, #entries
+  for _, entry in ipairs(entries) do
+    local app = entry.app and hs.application.get(entry.app) or nil
+    if not app and entry.app and entry.app:find("%.") then
+      hs.application.launchOrFocusByBundleID(entry.app)
+      hs.timer.doAfter(0.4, function() restoreEntry(entry) end)
+    else
+      restoreEntry(entry)
+    end
+  end
+  if remaining == 0 then finish() end
 end
 
 -- Window hints stay inside the display the pointer is on, so hints never
@@ -973,7 +1046,8 @@ local function showHints()
   end
   hs.hints.style = "default"
   hs.hints.fontSize = 26
-  local screen = hs.mouse.getCurrentScreen()
+  local context = pointerDisplayContext()
+  local screen = context and context.screen
   local windows = {}
   if screen then
     for _, window in ipairs(hs.window.allWindows()) do
@@ -1055,7 +1129,11 @@ end
 
 -- A token is created only by an explicit workflow action. It expires quickly
 -- and can move one matching app/window at most once.
-authorizeWindowFollow = function(application, window, ttl, fallback)
+authorizeWindowFollow = function(application, window, ttl, fallback, source)
+  if pullTimer then
+    pullTimer:stop()
+    pullTimer = nil
+  end
   local windowIDs = nil
   if window and type(window) == "table" and window.windowIDs then
     windowIDs = window.windowIDs
@@ -1068,6 +1146,7 @@ authorizeWindowFollow = function(application, window, ttl, fallback)
     windowID = windowValue(window, "id"),
     windowIDs = windowIDs,
     expiresAt = hs.timer.secondsSinceEpoch() + (ttl or FOLLOW_INTENT_TTL),
+    source = source or "explicit-selection",
   }
 end
 
@@ -1093,7 +1172,7 @@ end
 
 authorizeHintSelection = function()
   if not hintWindowIDs then return end
-  authorizeWindowFollow(nil, { windowIDs = hintWindowIDs }, FOLLOW_INTENT_TTL)
+  authorizeWindowFollow(nil, { windowIDs = hintWindowIDs }, FOLLOW_INTENT_TTL, nil, "window-hint")
 end
 
 local function pullWindowToCurrentScreen(application, win)
@@ -1136,6 +1215,7 @@ local function startWindowFollow()
         pullTimer = nil
       end
       pullTimer = hs.timer.doAfter(0.15, function()
+        pullTimer = nil
         local currentApplication = hs.application.frontmostApplication() or application
         local currentWindow = currentApplication and (currentApplication:focusedWindow() or currentApplication:mainWindow()) or nil
         if followIntentMatches(currentApplication, currentWindow) then
@@ -1197,7 +1277,7 @@ local function gridRender()
       fillColor = colors.gridOverlay,
     },
     {
-      type = "rectangle", action = "fillStroke",
+      type = "rectangle", action = "strokeAndFill",
       frame = { x = localX, y = localY, w = cellWidth, h = cellHeight },
       fillColor = { red = 1, green = 0.25, blue = 0.25, alpha = 0.10 },
       strokeColor = { red = 1, green = 0.25, blue = 0.25, alpha = 0.90 },
@@ -1208,7 +1288,7 @@ local function gridRender()
   if state.fine then
     local fineWidth, fineHeight = cellWidth / GRID_COLS, cellHeight / GRID_ROWS
     table.insert(elements, {
-      type = "rectangle", action = "fillStroke",
+      type = "rectangle", action = "strokeAndFill",
       frame = {
         x = localX + (state.scx - 1) * fineWidth,
         y = localY + (state.scy - 1) * fineHeight,
@@ -1255,13 +1335,12 @@ local function toggleGrid()
     return
   end
   closeAllHuds()
-  local screen = hs.mouse.getCurrentScreen()
-    or (hs.screen.mainScreen and hs.screen.mainScreen())
-  local raw = screen and screen:frame()
+  local context = pointerDisplayContext()
+  local raw = context and context.frame
   if not raw then return end
   -- Grid coordinates stay local to the screen frame; the canvas covers the
   -- whole screen so elements can use frame-local positions directly.
-  gridCanvas = newHudCanvas({ x = raw.x, y = raw.y, w = raw.w, h = raw.h })
+  gridCanvas = newHudCanvas(raw)
   if not gridCanvas then return end
   gridState = {
     frame = { x = 0, y = 0, w = raw.w, h = raw.h },
@@ -1299,9 +1378,8 @@ gridKey = function(name)
   elseif name == (currentMode == "left" and "f" or "d") then
     local point = gridPoint()
     hs.eventtap.leftClick(point)
-    hs.timer.usleep(120000)
-    hs.eventtap.leftClick(point)
     gridHide()
+    hs.timer.doAfter(0.12, function() hs.eventtap.leftClick(point) end)
   elseif name == "x" then
     hs.eventtap.rightClick(gridPoint())
     gridHide()
@@ -1772,6 +1850,7 @@ end
 local appearanceWatcher = nil
 if hs.distributednotifications and hs.distributednotifications.new then
   local ok, watcher = pcall(hs.distributednotifications.new, function()
+    cachedAccent = nil
     if activeLayer then
       renderLayer()
     elseif referenceVisible and renderReference then
@@ -1804,6 +1883,7 @@ return {
   openAppSwitcher = openAppSwitcher,
   toggleWindowFollow = toggleWindowFollow,
   debugStatus = function()
+    local context = activeLayer and layerDisplayContext or (referenceVisible and referenceDisplayContext)
     return {
       mode = currentMode,
       layer = activeLayer and activeLayer.id or nil,
@@ -1813,6 +1893,19 @@ return {
       follow = followEnabled,
       hyper = hyperDown,
       automaticDirectKeys = automaticDirectKeys,
+      hud = {
+        layer = activeLayer and activeLayer.id or nil,
+        referencePage = referenceVisible and referencePage or nil,
+        display = context and {
+          w = context.frame.w,
+          h = context.frame.h,
+        } or nil,
+        counters = hudMetrics,
+      },
+      followPending = followIntent and {
+        source = followIntent.source,
+        expiresIn = math.max(0, followIntent.expiresAt - hs.timer.secondsSinceEpoch()),
+      } or nil,
     }
   end,
   -- Retain watchers and the event tap so they cannot be garbage-collected.
